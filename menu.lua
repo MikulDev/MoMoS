@@ -848,13 +848,16 @@ function handle_keyboard_navigation(mod, key)
                 end
             end
         elseif focus.type == "pinned" then
-            -- Launch pinned app with or without sudo
-            if is_ctrl then
-                run_with_sudo(menu.pinned_apps[focus.index].exec)
-            else
-                awful.spawn(menu.pinned_apps[focus.index].exec)
+            local pinned = menu.pinned_apps[focus.index]
+            if pinned then
+                -- Launch pinned app with or without sudo
+                if is_ctrl then
+                    run_with_sudo(menu.pinned_apps[focus.index].exec)
+                else
+                    awful.spawn(menu.pinned_apps[focus.index].exec)
+                end
+                menu.hide()
             end
-            menu.hide()
         end
     elseif key == "Home" then
         if focus.type == "apps" then
