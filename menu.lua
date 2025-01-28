@@ -838,12 +838,14 @@ function handle_keyboard_navigation(mod, key)
 			 if focus.pin_focused then
                 toggle_pin(app)
             else
-                if is_ctrl then
-                    run_with_sudo(app.exec)
-                else
-                    awful.spawn(app.exec)
+                if app then
+                    if is_ctrl then
+                        run_with_sudo(app.exec)
+                    else
+                        awful.spawn(app.exec)
+                    end
+                    menu.hide()
                 end
-                menu.hide()
             end
         elseif focus.type == "pinned" then
             -- Launch pinned app with or without sudo
@@ -1023,6 +1025,7 @@ end
 
 function menu.show()
     if menu.wibox then
+        scan_desktop_files()
         -- Update to current screen
         menu.wibox.screen = mouse.screen
         
