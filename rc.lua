@@ -591,31 +591,44 @@ awful.screen.connect_for_each_screen(function(s)
 	    s.mysystray = wibox.widget.textbox("")
 	end
 
-	local systray_widget = nil
+	-- Create systray
 	if s == screen.primary then
-		systray_widget = {
-	    	{
-	        	s.mysystray,
-	        	top = dpi(13),
-	        	bottom = dpi(13),
-	        	left = dpi(10),
-	        	right = dpi(10),
-	       		widget = wibox.container.margin
-	       	},
-	       	bg = beautiful.bg_systray,
-	       	shape = function(cr, width, height)
-	           	gears.shape.rounded_rect(cr, width, height, dpi(10))
-			end,
-			shape_border_width = 1,
-			shape_border_color = beautiful.border_focus .. "aa",
-			widget = wibox.container.background
+	    local systray_container = wibox.widget {
+	        {
+	            s.mysystray,
+	            top = dpi(13),
+	            bottom = dpi(13),
+	            left = dpi(10),
+	            right = dpi(10),
+	            widget = wibox.container.margin
+	        },
+	        bg = beautiful.bg_systray,
+	        shape = function(cr, width, height)
+	            gears.shape.rounded_rect(cr, width, height, dpi(10))
+	        end,
+	        shape_border_width = 1,
+	        shape_border_color = beautiful.border_focus .. "aa",
+	        visible = false,
+	        widget = wibox.container.background
 	    }
+	    systray_widget = systray_container
+	    
+	    -- Hide systray widget if it is empty
+	    local check_visibility = function()
+	        systray_container.visible = awesome.systray() > 0
+	    end
+	    
+	    awesome.connect_signal("systray::update", check_visibility)
+	    check_visibility()
+	else
+		systray_widget = nil
 	end
 
 	-- Add widgets to the wibox
     s.mywibox:setup({
-        layout = wibox.layout.align.horizontal,
-        {   -- Left widgets
+       	layout = wibox.layout.align.horizontal,
+		-- Left widgets		
+        {   
             layout = wibox.layout.fixed.horizontal,
             make_spacer(dpi(8)),
             mylauncher,
@@ -635,8 +648,10 @@ awful.screen.connect_for_each_screen(function(s)
             },
             s.mypromptbox,
         },
-        nil, -- Middle space
-        {    -- Right widgets
+		-- Middle widgets
+        nil,
+		-- Right widgets
+        {    
 		     layout = wibox.layout.fixed.horizontal,
 		     --mykeyboardlayout,
 		     make_spacer(dpi(12)),
@@ -647,7 +662,7 @@ awful.screen.connect_for_each_screen(function(s)
 		         widget = wibox.container.margin
 		     },
 		     make_spacer(dpi(12)),
-		     make_divider(1, dpi(4)),
+		     make_divider(1, dpi(8)),
 		     make_spacer(dpi(12)),
 		     mytextclock,
 		     make_spacer(dpi(12)),
@@ -1216,7 +1231,7 @@ end)
 
 -- Enable sloppy focus, so that focus follows mouse.
 client.connect_signal("mouse::enter", function(c)
-    if (client.focus ~= c and not switcher_open)then
+    if (client.focus ~= c and not switcher_open) then
         c:emit_signal("request::activate", "mouse_enter", {raise = false})
     end
 end)
