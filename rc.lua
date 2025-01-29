@@ -217,14 +217,16 @@ wiboxEnabled = true
 
 
 -- {{{ Bisect the monitor into 2 screens (for ultrawide monitors)
-local geo = screen[1].geometry
-local full_screen_width = geo.width
-local full_screen_height = geo.height
-if full_screen_width / full_screen_height > 16.0/9.0 then
-	local new_width = math.ceil(geo.width / 2)
-	local new_width2 = geo.width - new_width
-	screen[1]:fake_resize(geo.x, geo.y, new_width, geo.height)
-	screen.fake_add(geo.x + new_width, geo.y, new_width2, geo.height)
+if (config.split_ultrawide) then
+	local geo = screen[1].geometry
+	local full_screen_width = geo.width
+	local full_screen_height = geo.height
+	if full_screen_width / full_screen_height > 16.0/9.0 then
+		local new_width = math.ceil(geo.width / 2)
+		local new_width2 = geo.width - new_width
+		screen[1]:fake_resize(geo.x, geo.y, new_width, geo.height)
+		screen.fake_add(geo.x + new_width, geo.y, new_width2, geo.height)
+	end
 end
 -- }}}
 
