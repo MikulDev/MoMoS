@@ -28,19 +28,21 @@ local hotkeys_popup = require("awful.hotkeys_popup")
 local menu = require("menu")
 menu.init()
 
+local config = require("config")
+
 
 -- {{{ Default Applications
-compositor = "picom"
-terminal = "alacritty"
-editor = os.getenv("EDITOR") or "gedit"
-web_browser = "firefox"
-bluetooth = terminal .. " -e bluetuith"
+compositor = config.compositor
+terminal = config.terminal
+editor = config.editor
+web_browser = config.web_browser
+bluetooth = config.bluetooth
 -- }}}
 
 
 -- {{{ Settings
-modkey = "Mod4"
-screenshot_path = "$HOME/Screenshots/"
+modkey = config.modkey
+screenshot_path = config.screenshot_path
 -- }}}
 
 
