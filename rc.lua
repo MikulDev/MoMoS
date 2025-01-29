@@ -185,10 +185,13 @@ function make_divider(width, margin)
 end
 
 -- Makes a filled rounded rectangle shape for the taglist and tasklist
-function taglist_square_sel(size, fg)
+function taglist_dot_sel(size, fg)
     local surface = cairo.ImageSurface.create("ARGB32", size, size)
     local cr = cairo.Context.create(surface)
-    cr:arc(size / 2, size / 2, size / 2, math.rad(0), math.rad(360))
+    -- Round the center and radius to avoid sub-pixel positioning
+    local center = math.floor(size / 2 + 0.5)
+    local radius = math.floor(size / 2.0)
+    cr:arc(center, center, radius, 0, 2 * math.pi)
     cr:set_source(gears.color(fg))
     cr.antialias = cairo.Antialias.BEST
     cr:fill()
@@ -196,11 +199,11 @@ function taglist_square_sel(size, fg)
 end
 
 -- Makes an empty rounded rectangle shape for the taglist and tasklist
-function taglist_square_unsel(size, fg)
+function taglist_dot_unsel(size, fg)
     local surface = cairo.ImageSurface.create("ARGB32", size, size)
     local cr = cairo.Context.create(surface)
-    local line_width = dpi(4.5)
-    cr:arc(size / 2, size / 2, size / 2 - line_width / 2, math.rad(0), math.rad(360))
+    local line_width = dpi(4)
+    cr:arc(size / 2, size / 2, size / 2 - line_width, math.rad(0), math.rad(360))
     cr:set_source(gears.color(fg))
     cr.antialias = cairo.Antialias.BEST
     cr:set_line_width(line_width)
@@ -413,7 +416,7 @@ awful.screen.connect_for_each_screen(function(s)
         gears.shape.rounded_rect(cr, width, height, 4)
     end
 
-    s.mytaglist = awful.widget.taglist {
+   	s.mytaglist = awful.widget.taglist {
         screen  = s,
         filter  = awful.widget.taglist.filter.all,
         buttons = taglist_buttons,
@@ -465,23 +468,44 @@ awful.screen.connect_for_each_screen(function(s)
             bottom = dpi(5),
             widget = wibox.container.margin,
             update_callback = function(self, tg, index, objects)
-                local selected = false
-                for _, ta in pairs(awful.screen.focused().selected_tags) do
-                    if ta == tg then
-                        selected = true
-                    end
-                end
-                local imagebox = self:get_children_by_id('icon_role')[1]
-                if (tg:clients()[1] ~= nil) then
-                    if (selected) then
-                        imagebox.image = taglist_square_sel(dpi(32), "#fffffff0")
-                    else
-                        imagebox.image = taglist_square_unsel(dpi(32), "#ffffffa0")
-                    end
-                else
-                    imagebox.image = nil
-                end
-            end
+	            local selected = false
+	            for _, ta in pairs(awful.screen.focused().selected_tags) do
+	                if ta == tg then
+	                    selected = true
+	                end
+	            end
+	            
+	            local background = self:get_children_by_id('background_role')[1]
+	            local imagebox = self:get_children_by_id('icon_role')[1]
+	            
+	            -- 
+                gears.timer.start_new(0.01, function()
+					if tg.urgent then
+	                    background.bg = gears.color.create_pattern({
+	                        type = "radial",
+	                        from = { dpi(9), dpi(9), 0 },    -- Starting circle: x, y, radius
+	                        to = { dpi(9), dpi(9), dpi(30) },     -- Ending circle: x, y, radius
+	                        stops = {
+	                            { 0, beautiful.taglist_urgent .. "dd" },
+								{ 0.3, beautiful.taglist_urgent .. "55" },
+								{ 1, beautiful.taglist_urgent .. "00" }
+	                        }
+	                    })
+	                    return false  -- Don't repeat the timer
+		            end
+                end)
+	            
+	            -- Update focus dot
+	            if (tg:clients()[1] ~= nil) then
+	                if (selected) then
+	                    imagebox.image = taglist_dot_sel(dpi(10), beautiful.taglist_dot .. "f0")
+	                else
+	                    imagebox.image = taglist_dot_unsel(dpi(40), beautiful.taglist_dot .. "a0")
+	                end
+	            else
+	                imagebox.image = nil
+	            end
+	        end
         }
     }
 

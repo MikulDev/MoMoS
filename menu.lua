@@ -253,7 +253,7 @@ function create_pinned_icon(app, index)
         }
     end
 
-    local icon_container = util.create_image_button({
+    local icon_container = create_image_button({
 	    image_path = app.icon,
 	    fallback_text = "⬡",
 	    image_size = dpi(32),
@@ -363,7 +363,7 @@ function create_entry(app, index)
     end
 
     -- Create pin button
-    widget.pin_button = util.create_image_button({
+    widget.pin_button = create_image_button({
 	    image_path = widget.is_pinned and menu.icons.pinned or menu.icons.pin,
 	    image_size = dpi(24),
 	    padding = dpi(6),

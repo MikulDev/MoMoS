@@ -44,7 +44,7 @@ theme.systray_icon_spacing = dpi(5)
 theme.bg_focus      = "#535d6c"
 theme.bg_urgent     = "#ff0000"
 theme.bg_minimize   = "#444444"
-theme.wibar_height = 50
+theme.wibar_height = dpi(52)
 
 theme.fg_normal     = light_gray .. "d0"
 theme.fg_focus      = white
@@ -60,7 +60,9 @@ theme.border_marked = "#91231c"
 
 theme.taglist_bg_focus = light_gray .. "60"
 theme.taglist_fg_focus = white
-theme.taglist_bg_urgent = selected .. "80"
+theme.taglist_bg_urgent = black .. "00"
+theme.taglist_urgent = "#86A5D0"
+theme.taglist_dot = white
 theme.taglist_spacing = dpi(6)
 theme.taglist_shape = tag_shape
 theme.taglist_shape_border_width = 1

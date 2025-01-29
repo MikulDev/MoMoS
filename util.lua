@@ -1,6 +1,7 @@
 local awful = require("awful")
 local beautiful = require("beautiful")
 local gears = require("gears")
+local cairo = require("lgi").cairo
 local wibox = require("wibox")
 local dpi = require("beautiful.xresources").apply_dpi
 
@@ -9,7 +10,7 @@ local theme = dofile(config_dir .. "theme.lua")
 
 local util = {}  -- Create the module table
 
-function util.create_image_button(args)
+function create_image_button(args)
     -- Default values merged with provided args
     args = args or {}
     local image_path = args.image_path
