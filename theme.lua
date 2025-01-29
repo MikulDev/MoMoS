@@ -40,7 +40,7 @@ theme.tasklist_font = theme.font .. " " .. dpi(11)
 
 theme.bg_normal     = pitch_black .. "da"
 theme.bg_systray    = black
-theme.systray_icon_spacing = dpi(5)
+theme.systray_icon_spacing = dpi(8)
 theme.bg_focus      = "#535d6c"
 theme.bg_urgent     = "#ff0000"
 theme.bg_minimize   = "#444444"
