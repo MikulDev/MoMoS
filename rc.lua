@@ -32,7 +32,15 @@ menu.init()
 -- {{{ Default Applications
 compositor = "picom"
 terminal = "alacritty"
-editor = os.getenv("EDITOR") or "jetbrains_fleet"
+editor = os.getenv("EDITOR") or "gedit"
+web_browser = "firefox"
+bluetooth = terminal .. " -e bluetuith"
+-- }}}
+
+
+-- {{{ Settings
+modkey = "Mod4"
+screenshot_path = "$HOME/Screenshots/"
 -- }}}
 
 
@@ -230,13 +238,6 @@ awesome.set_preferred_icon_size(64)
 
 -- This is used later as the default terminal and editor to run.
 editor_cmd = terminal .. " -e " .. editor
-
--- Default modkey.
--- Usually, Mod4 is the key with a logo between Control and Alt.
--- If you do not like this or do not have such a key,
--- I suggest you to remap Mod4 to another key using xmodmap or other tools.
--- However, you can use another modifier like Mod1, but it may interact with others.
-modkey = "Mod4"
 
 -- Table of layouts to cover with awful.layout.inc, order matters.
 awful.layout.layouts = {
@@ -635,7 +636,7 @@ globalkeys = gears.table.join(
 awful.key({ "Control", modkey, "Mod1"}, "q", function () awful.spawn('shutdown now') end,
 {description="shutdown", group="awesome"}),
 awful.key({}, "Print", function ()
-    os.execute('path="$HOME/Screenshots/$(date +%s).png" && maim -s "$path" && xclip -selection clipboard -t image/png "$path"')
+    os.execute('path="' .. screenshot_path .. '$(date +%s).png" && maim -s "$path" && xclip -selection clipboard -t image/png "$path"')
     end,
 {description="screenshot", group="awesome"}),
 awful.key({ modkey,           }, "s",      hotkeys_popup.show_help,
@@ -830,10 +831,10 @@ end,
 -- Standard program
 awful.key({ modkey,           }, "Return", function () awful.spawn(terminal) end,
 {description = "open a terminal", group = "launcher"}),
-awful.key({ modkey,           }, "w", function () awful.spawn("firefox") end,
-{description = "open firefox", group = "launcher"}),
-awful.key({ modkey }, "b", function() awful.spawn(terminal .. " -e bluetuith") end,
-{description = "jump to urgent client", group = "client"}),
+awful.key({ modkey,           }, "w", function () awful.spawn(web_browser) end,
+{description = "open web browser", group = "launcher"}),
+awful.key({ modkey }, "b", function() awful.spawn(bluetooth) end,
+{description = "open bluetooth menu", group = "client"}),
 awful.key({ modkey, "Control" }, "r", awesome.restart,
 {description = "reload awesome", group = "awesome"}),
 awful.key({ modkey, "Control"   }, "q", awesome.quit,
