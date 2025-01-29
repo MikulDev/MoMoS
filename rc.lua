@@ -210,7 +210,7 @@ end
 function taglist_dot_unsel(size, fg)
     local surface = cairo.ImageSurface.create("ARGB32", size, size)
     local cr = cairo.Context.create(surface)
-    local line_width = dpi(4)
+    local line_width = dpi(5)
     cr:arc(size / 2, size / 2, size / 2 - line_width, math.rad(0), math.rad(360))
     cr:set_source(gears.color(fg))
     cr.antialias = cairo.Antialias.BEST
@@ -476,17 +476,17 @@ awful.screen.connect_for_each_screen(function(s)
             bottom = dpi(5),
             widget = wibox.container.margin,
             update_callback = function(self, tg, index, objects)
-	            local selected = false
-	            for _, ta in pairs(awful.screen.focused().selected_tags) do
-	                if ta == tg then
+	           	local selected = false
+	           	for _, ta in pairs(awful.screen.focused().selected_tags) do
+	          	    if ta == tg then
 	                    selected = true
-	                end
-	            end
+	               	end
+	           	end
 	            
-	            local background = self:get_children_by_id('background_role')[1]
-	            local imagebox = self:get_children_by_id('icon_role')[1]
+	           	local background = self:get_children_by_id('background_role')[1]
+	           	local imagebox = self:get_children_by_id('icon_role')[1]
 	            
-	            -- 
+	            -- Handle tag backgrounds
                 gears.timer.start_new(0.01, function()
 					if tg.urgent then
 	                    background.bg = gears.color.create_pattern({
@@ -494,28 +494,28 @@ awful.screen.connect_for_each_screen(function(s)
 	                        from = { dpi(9), dpi(9), 0 },    -- Starting circle: x, y, radius
 	                        to = { dpi(9), dpi(9), dpi(30) },     -- Ending circle: x, y, radius
 	                        stops = {
-	                            { 0, beautiful.taglist_urgent .. "dd" },
-								{ 0.3, beautiful.taglist_urgent .. "55" },
-								{ 1, beautiful.taglist_urgent .. "00" }
+	                            { 0, beautiful.taglist_urgent .. "88" },
+								{ 0.3, beautiful.taglist_urgent .. "66" },
+								{ 1, beautiful.taglist_urgent .. "28" }
 	                        }
 	                    })
-	                    return false  -- Don't repeat the timer
-		            end
+					end
+					return false
                 end)
 	            
-	            -- Update focus dot
-	            if (tg:clients()[1] ~= nil) then
-	                if (selected) then
-	                    imagebox.image = taglist_dot_sel(dpi(10), beautiful.taglist_dot .. "f0")
-	                else
-	                    imagebox.image = taglist_dot_unsel(dpi(40), beautiful.taglist_dot .. "a0")
-	                end
-	            else
-	                imagebox.image = nil
-	            end
-	        end
-        }
-    }
+	           	-- Update focus dot
+	           	if (tg:clients()[1] ~= nil) then
+					if (selected) then
+	                   	imagebox.image = taglist_dot_sel(dpi(10), beautiful.taglist_dot .. "f0")
+	               	else
+	                   	imagebox.image = taglist_dot_unsel(dpi(50), tg.urgent and beautiful.taglist_dot .. "ff" or beautiful.taglist_dot .. "a0")
+	               	end
+	           	else
+	               	imagebox.image = nil
+	           	end
+	       	end
+       	}
+   	}
 
     -- Create a tasklist widget
     s.mytasklist = awful.widget.tasklist {
