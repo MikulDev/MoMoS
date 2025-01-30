@@ -291,7 +291,7 @@ mymainmenu = awful.menu({ items = {
 mylauncher = wibox.widget {
     {
         {
-            widget = awful.widget.launcher({ image = config_dir .. "theme-icons/arch-logo.png",
+            widget = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png",
             menu = mymainmenu})
         },
         strategy = "exact",
