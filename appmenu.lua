@@ -520,6 +520,8 @@ function create_entry(app, index)
         widget = wibox.container.margin
     }
 
+	add_hover_cursor(container)
+
     -- Initial state
     widget:update_state()
 

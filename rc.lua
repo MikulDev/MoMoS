@@ -25,8 +25,8 @@ local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
 
 -- Load the menu module
-local menu = require("menu")
-menu.init()
+local appmenu = require("appmenu")
+appmenu.init()
 
 -- Config settings
 local config = require("config")
@@ -145,8 +145,8 @@ end
 --- {{{ App Menu
 
 -- Create the app menu popup
-menu.popup = awful.popup {
-    widget = menu.create(),
+appmenu.popup = awful.popup {
+    widget = appmenu.create(),
     border_color = beautiful.border_focus,
     border_width = beautiful.border_width,
     placement = awful.placement.centered,
@@ -160,14 +160,6 @@ menu.popup = awful.popup {
     maximum_width = dpi(400),
     maximum_height = dpi(600)
 }
-
--- Function to show/hide the menu
-local function toggle_app_menu()
-    app_menu.visible = not app_menu.visible
-    if app_menu.visible then
-        awful.placement.centered(app_menu)
-    end
-end
 
 --- }}}
 
@@ -503,7 +495,6 @@ awful.screen.connect_for_each_screen(function(s)
 	                        to = { dpi(9), dpi(9), dpi(30) },     -- Ending circle: x, y, radius
 	                        stops = {
 	                            { 0, beautiful.taglist_urgent .. "88" },
-								{ 0.3, beautiful.taglist_urgent .. "66" },
 								{ 1, beautiful.taglist_urgent .. "28" }
 	                        }
 	                    })
@@ -939,7 +930,7 @@ awful.key({ modkey,           }, "]",     function () awful.tag.incmwfact( 0.05)
               end,
               {description = "lua execute prompt", group = "awesome"}),
     -- Menubar
-    awful.key({ modkey }, "d", function() menu.toggle() end,
+    awful.key({ modkey }, "d", function() appmenu.toggle() end,
     	{description = "show application menu", group = "launcher"})
 )
 
