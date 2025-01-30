@@ -58,6 +58,7 @@ theme.border_normal = pitch_black
 theme.border_focus  = gray
 theme.border_marked = "#91231c"
 
+-- Tags
 theme.taglist_bg_focus = light_gray .. "60"
 theme.taglist_fg_focus = white
 theme.taglist_bg_urgent = black .. "00"
@@ -69,6 +70,7 @@ theme.taglist_shape_border_width = 1
 theme.taglist_shape_border_color = white .. "20"
 theme.taglist_shape_border_color_focus = white .. "40"
 
+-- Tasks
 theme.tasklist_shape = tag_shape
 theme.tasklist_spacing = dpi(10)
 theme.tasklist_bg_focus = light_gray .. "60"
@@ -83,6 +85,7 @@ theme.tasklist_shape_border_color_focus = white .. "40"
 theme.tasklist_shape_border_color_minimized = gray .. "90"
 theme.tasklist_shape_border_width = 1
 
+-- Notifications
 theme.notification_icon_size = dpi(60)
 theme.notification_font = "Gadugi Normal 12"
 theme.notification_shape = tag_shape
@@ -92,6 +95,7 @@ theme.notification_fg = white .. "b0"
 theme.notification_margin = dpi(16)
 naughty.config.defaults.margin = theme.notification_margin
 
+-- App Menu
 theme.appmenu = {}
 theme.appmenu.bg = theme.pitch_black .. "dd"
 theme.appmenu.button_bg = theme.dark_gray .. "dd"
@@ -102,6 +106,22 @@ theme.appmenu.fg = theme.light_gray .. "d0"
 theme.appmenu.border = theme.gray
 theme.appmenu.button_border = theme.light_gray
 theme.appmenu.button_border_focus = theme.white
+
+-- Calendar
+theme.calendar = {}
+theme.calendar.bg = theme.pitch_black .. "dd"
+theme.calendar.date_bg = theme.dark_gray .. "66"
+theme.calendar.date_bg_current = theme.selected .. "40"
+theme.calendar.date_bg_hover = theme.selected .. "25"
+theme.calendar.month_fg = theme.white
+theme.calendar.day_fg = theme.white .. "aa"
+theme.calendar.date_fg = theme.light_gray .. "ff"
+theme.calendar.date_fg_hover = theme.white
+theme.calendar.date_fg_current = theme.white
+theme.calendar.border = theme.gray
+theme.calendar.date_border = theme.light_gray
+theme.calendar.date_border_hover = theme.white
+theme.calendar.date_border_current = theme.white
 
 -- There are other variable sets
 -- overriding the default one when
@@ -131,8 +151,8 @@ local taglist_square_size = dpi(6)
 -- menu_[bg|fg]_[normal|focus]
 -- menu_[border_color|border_width]
 theme.menu_submenu_icon = themes_path.."default/submenu.png"
-theme.menu_height = dpi(15)
-theme.menu_width  = dpi(100)
+theme.menu_height = dpi(20)
+theme.menu_width  = dpi(160)
 
 -- You can add as many variables as
 -- you wish and access them by using

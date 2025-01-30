@@ -28,7 +28,11 @@ local hotkeys_popup = require("awful.hotkeys_popup")
 local menu = require("menu")
 menu.init()
 
+-- Config settings
 local config = require("config")
+
+-- Calendar
+local calendar = require("calendar")
 
 
 -- {{{ Default Applications
@@ -321,7 +325,7 @@ mytextclock = wibox.widget {
         {
             {
                 {
-                    format = '<span foreground="' .. beautiful.fg_focus .. "b0" .. '">%a, %b %d</span>',
+                    format = '<span foreground="' .. beautiful.fg_focus .. "dd" .. '">%a, %b %d</span>',
                     font = "Gadugi Normal " .. dpi(10),
                     widget = wibox.widget.textclock
                 },
@@ -333,7 +337,7 @@ mytextclock = wibox.widget {
         },
         {
             {
-                format = '<span foreground="' .. beautiful.fg_focus .. "b0" .. '">%I:%M %p</span>',
+                format = '<span foreground="' .. beautiful.fg_focus .. "dd" .. '">%I:%M %p</span>',
                 font = "Gadugi Normal " .. dpi(12),
                 widget = wibox.widget.textclock
             },
@@ -345,6 +349,10 @@ mytextclock = wibox.widget {
     align = "center",
     widget = wibox.container.place,
 }
+
+-- Attach calendar to textclock
+local my_calendar = calendar.new()
+my_calendar:attach(mytextclock)
 
 -- Create a wibox for each screen and add it
 local taglist_buttons = gears.table.join(
