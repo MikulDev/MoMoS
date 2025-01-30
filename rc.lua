@@ -26,13 +26,18 @@ local hotkeys_popup = require("awful.hotkeys_popup")
 
 -- Load the menu module
 local appmenu = require("appmenu")
-appmenu.init()
+appmenu_init()
+
+-- Calendar
+local calendar = require("calendar")
+
+-- Switcher
+local switcher = require("switcher")
 
 -- Config settings
 local config = require("config")
 
--- Calendar
-local calendar = require("calendar")
+local util = require("util")
 
 
 -- {{{ Default Applications
@@ -83,7 +88,7 @@ do
         in_error = true
 
         naughty.notify({ preset = naughty.config.presets.critical,
-                         title = "Oops, an error happened!",
+                         title = "Error in rc",
                          text = tostring(err) })
         in_error = false
     end)
@@ -92,61 +97,11 @@ end
 
 naughty.config.defaults.timeout = 20
 
--- {{{ Utility functions
-
-function get_focused_client()
-   return client.focus
-end
-
-function math.clamp(val, lower, upper)
-    if lower > upper then lower, upper = upper, lower end -- swap if boundaries supplied the wrong way
-    return math.max(lower, math.min(upper, val))
-end
-
-function table_size(t)
-    count = 0
-    for _, c in ipairs(t) do
-        count = count + 1
-    end
-    return count
-end
-
--- }}}
-
-
--- {{{ Window management functions
-
-function clamp_window_bounds(c)
-    local geo = c.screen:get_bounding_geometry({honor_padding  = true, honor_workarea = true})
-    local winWidth = c.width
-    local winHeight = c.height
-    c.x = math.clamp(c.x, geo.x, geo.width - winWidth + geo.x)
-    c.y = math.clamp(c.y, geo.y, geo.height - winHeight + geo.y)
-end
-
--- Focuses the window currently under the mouse
--- Called when the window layout changes (window spawned/killed, tag changed, etc.)
-function set_focus_to_mouse()
-    if not (focusing or switcher_open) then
-        local focus_timer = timer({ timeout = 0.1 })
-        focus_timer:connect_signal("timeout", function()
-            local c = awful.mouse.client_under_pointer()
-            if not (c == nil) then
-                client.focus = c
-                c:raise()
-            end
-            focus_timer:stop()
-        end)
-        focus_timer:start()
-    end
-end
--- }}}
-
 --- {{{ App Menu
 
 -- Create the app menu popup
-appmenu.popup = awful.popup {
-    widget = appmenu.create(),
+appmenu_data.popup = awful.popup {
+    widget = appmenu_create(),
     border_color = beautiful.border_focus,
     border_width = beautiful.border_width,
     placement = awful.placement.centered,
@@ -681,7 +636,6 @@ awful.button({ }, 5, awful.tag.viewprev)
 -- }}}
 
 -- {{{ Key bindings
-local switcher_open = false
 globalkeys = gears.table.join(
 awful.key({ "Control", modkey, "Mod1"}, "q", function () awful.spawn('shutdown now') end,
 {description="shutdown", group="awesome"}),
@@ -744,138 +698,7 @@ awful.key({ modkey }, "u", awful.client.urgent.jumpto,
     }
 end,
 {description = "toggle the wibar", group = "screen"}), --]]
-awful.key({ modkey,           }, "Tab",
-function ()
-    local tasks = {}
-    local task_switcher =
-    wibox.widget
-    {
-        {
-            id     = 'task_list',
-            widget = awful.widget.tasklist
-            {
-                screen   = screen[1],
-                filter   = awful.widget.tasklist.filter.allscreen,
-                buttons  = tasklist_buttons,
-                style    = {
-                    shape = gears.shape.rounded_rect,
-                    spacing = 12,
-                },
-                layout   = {
-                    -- Force 2 rows from left to right
-                    forced_num_cols = table_size(client.get()) / 2,
-                    layout = wibox.layout.grid.vertical
-                },
-                widget_template =
-                {
-                    {
-                        {
-                            id     = 'clienticon',
-                            widget = awful.widget.clienticon,
-                        },
-                        margins = 12,
-                        widget  = wibox.container.margin,
-                    },
-                    id              = 'background_role',
-                    forced_width    = dpi(64),
-                    forced_height   = dpi(64),
-                    widget          = wibox.container.background,
-                    create_callback = function(self, c, index, objects) --luacheck: no unused
-                        self:get_children_by_id('clienticon')[1].client = c
-
-                        local bg = self:get_children_by_id('background_role')[1]
-
-                        -- Highlighting icons when hovered
-                        self:connect_signal("mouse::enter", function()
-                            bg.bg = beautiful.tasklist_bg_focus
-                            bg.shape_border_color = beautiful.tasklist_shape_border_color_focus
-                        end)
-                        -- Remove highlighting when un-hovered
-                        self:connect_signal("mouse::leave", function()
-                            if (c ~= client.focus) then
-                                if (c.minimized) then
-                                    bg.bg = beautiful.tasklist_bg_minimize
-                                else
-                                    bg.bg = beautiful.tasklist_bg_normal
-                                end
-                                bg.shape_border_color = beautiful.tasklist_shape_border_color
-                            end
-                        end)
-
-                        -- Add to the list of tasks (used later)
-                        table.insert(tasks, {self, c})
-                    end,
-                },
-            }
-        },
-        margins = 12,
-        widget = wibox.container.margin,
-    }
-
-    if (switcher_open ~= true) then
-        switcher_open = true
-        local popup = awful.popup
-        {
-            widget       = task_switcher,
-            screen       = mouse.screen,
-            bg           = '#0f0f0fa0',
-            border_color = '#252525a0',
-            border_width = 1,
-            ontop        = true,
-            placement    = awful.placement.centered,
-            shape        = gears.shape.rounded_rect,
-        }
-
-        local grabber
-        local sel_task = 0
-
-        local close_popup = function()
-            popup.visible = false
-            switcher_open = false
-            awful.keygrabber.stop(grabber)
-        end
-
-        grabber = awful.keygrabber.run(function(mod, key, event)
-            if (event == "press") then
-                -- Close popup
-                if (key == "Escape") then
-                    close_popup()
-                    set_focus_to_mouse()
-                    awful.keygrabber.stop(grabber)
-                    return
-                -- Cycle through tasks
-                elseif (key == "Tab") then
-                    count = 0
-                    for _, c in ipairs(tasks) do
-                        count = count + 1
-                        -- Un-highlight all tasks
-                        c[1]:emit_signal("mouse::leave")
-                    end
-                    -- Highlight and store index of next task
-                    sel_task = (sel_task % count) + 1
-                    tasks[sel_task][1]:emit_signal("mouse::enter")
-                -- Open selected task
-                elseif (key == "Return") then
-                    sel_client = tasks[sel_task][2]
-                    client.focus = sel_client
-                    sel_client.first_tag:view_only()
-                    close_popup()
-                end
-            end
-        end)
-
-        -- Close when clicked outside box
-        client.connect_signal("button::press", function()
-            close_popup()
-        end)
-        popup:connect_signal("button::press", function()
-            close_popup()
-        end)
-
-        -- Unfocus all clients when box opens
-        client.focus = nil
-    end
-end,
+awful.key({ modkey }, "Tab", function() switcher.show() end,
 {description = "task switcher", group = "client"}),
 
 -- Standard program
@@ -930,7 +753,7 @@ awful.key({ modkey,           }, "]",     function () awful.tag.incmwfact( 0.05)
               end,
               {description = "lua execute prompt", group = "awesome"}),
     -- Menubar
-    awful.key({ modkey }, "d", function() appmenu.toggle() end,
+    awful.key({ modkey }, "d", function() appmenu_toggle() end,
     	{description = "show application menu", group = "launcher"})
 )
 
@@ -1178,9 +1001,10 @@ client.connect_signal("manage", function (c)
     end
 
     -- Reset focus if new window isn't floating (because floating windows are usually popups)
-    if (c.floating ~= true) then
+    if (not c.floating) then
         set_focus_to_mouse()
     end
+	c.sticky = false
 end)
 
 client.connect_signal("unmanage", function (c)
@@ -1190,7 +1014,7 @@ end)
 
 -- Enable sloppy focus, so that focus follows mouse.
 client.connect_signal("mouse::enter", function(c)
-    if (client.focus ~= c and not switcher_open) then
+    if (client.focus ~= c and not switcher_data.is_open and not appmenu_data.wibox.visible) then
         c:emit_signal("request::activate", "mouse_enter", {raise = false})
     end
 end)

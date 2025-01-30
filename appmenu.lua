@@ -12,8 +12,25 @@ local icon_dir = config_dir .. "theme-icons/"
 local theme = dofile(config_dir .. "theme.lua")
 local util = require("util")
 
+-- {{{ Error handling
+-- Handle runtime errors after startup
+do
+    local in_error = false
+    awesome.connect_signal("debug::error", function (err)
+        -- Make sure we don't go into an endless error loop
+        if in_error then return end
+        in_error = true
+
+        naughty.notify({ preset = naughty.config.presets.critical,
+                         title = "Error in appmenu:",
+                         text = tostring(err) })
+        in_error = false
+    end)
+end
+-- }}}
+
 -- Initialize the menu table that will hold all our functions and state
-local menu = {
+appmenu_data = {
     wibox = nil,
     widget = nil,
     search_textbox = nil,
@@ -112,7 +129,7 @@ function scan_desktop_files()
         os.getenv("HOME") .. "/.local/share/applications/"
     }
     
-    menu.desktop_entries = {} -- Clear existing entries
+    appmenu_data.desktop_entries = {} -- Clear existing entries
     
     for _, path in ipairs(paths) do
         local handle = io.popen('find "' .. path .. '" -name "*.desktop"')
@@ -142,7 +159,7 @@ function scan_desktop_files()
                         -- Get icon path
                         local icon_path = get_icon_path(content)
                         
-                        table.insert(menu.desktop_entries, {
+                        table.insert(appmenu_data.desktop_entries, {
                             name = name,
                             exec = exec,
                             icon = icon_path
@@ -155,7 +172,7 @@ function scan_desktop_files()
     end
     
     -- Sort applications alphabetically
-    table.sort(menu.desktop_entries, function(a, b) 
+    table.sort(appmenu_data.desktop_entries, function(a, b) 
         return string.lower(a.name) < string.lower(b.name)
     end)
 end
@@ -165,7 +182,7 @@ function save_pinned_apps()
     local file = io.open(config_dir .. "persistent/pinned_apps.lua", "w")
     if file then
         file:write("return {")
-        for _, app in ipairs(menu.pinned_apps) do
+        for _, app in ipairs(appmenu_data.pinned_apps) do
             file:write(string.format(
                 '\n  {name = "%s", exec = "%s", icon = "%s"},',
                 app.name, app.exec, app.icon or ""
@@ -180,7 +197,7 @@ end
 function load_pinned_apps()
     local success, apps = pcall(dofile, config_dir .. "persistent/pinned_apps.lua")
     if success and type(apps) == "table" then
-        menu.pinned_apps = apps
+        appmenu_data.pinned_apps = apps
     end
 end
 
@@ -190,7 +207,7 @@ function toggle_pin(app)
 	local is_pinned = false
     local pinned_index = nil
     
-	for i, pinned_app in ipairs(menu.pinned_apps) do
+	for i, pinned_app in ipairs(appmenu_data.pinned_apps) do
         if pinned_app.name == app.name then
             is_pinned = true
             pinned_index = i
@@ -200,11 +217,11 @@ function toggle_pin(app)
     
     if is_pinned then
         -- Remove from pinned apps
-        table.remove(menu.pinned_apps, pinned_index)
+        table.remove(appmenu_data.pinned_apps, pinned_index)
     else
         -- Add to pinned apps if not at maximum
-        if #menu.pinned_apps < menu.max_pinned then
-            table.insert(menu.pinned_apps, {
+        if #appmenu_data.pinned_apps < appmenu_data.max_pinned then
+            table.insert(appmenu_data.pinned_apps, {
                 name = app.name,
                 exec = app.exec,
                 icon = app.icon
@@ -263,16 +280,16 @@ function create_pinned_icon(app, index)
 	    shape_radius = dpi(8),
 	    on_click = function()
 	        awful.spawn(app.exec)
-	        menu.hide()
+	        appmenu_hide()
 	        return true
 	    end,
 	    on_ctrl_click = function()
 	        run_with_sudo(app.exec)
-	        menu.hide()
+	        appmenu_hide()
 	        return true
 	    end,
 	    on_right_click = function()
-	        table.remove(menu.pinned_apps, index)
+	        table.remove(appmenu_data.pinned_apps, index)
 	        save_pinned_apps()
 	        refresh_menu_widget()
 	        return true
@@ -281,7 +298,7 @@ function create_pinned_icon(app, index)
 
     -- Update background based on focus state
     local function update_focus()
-	    if menu.current_focus.type == "pinned" and menu.current_focus.index == index then
+	    if appmenu_data.current_focus.type == "pinned" and appmenu_data.current_focus.index == index then
 	        icon_container:update_colors(theme.appmenu.button_bg_focus, theme.appmenu.button_border_focus .. "33")
 	    else
 	        icon_container:update_colors(theme.appmenu.button_bg, theme.appmenu.button_border .. "33")
@@ -291,25 +308,25 @@ function create_pinned_icon(app, index)
     update_focus() -- Initial state
 
     -- Subscribe to focus changes
-    menu.wibox:connect_signal("property::current_focus", update_focus)
+    appmenu_data.wibox:connect_signal("property::current_focus", update_focus)
 
     -- Mouse handlers
     icon_container:connect_signal("mouse::enter", function()
-	    menu.current_focus = {
+	    appmenu_data.current_focus = {
 	        type = "pinned",
 	        index = index,
 	        pin_focused = false
 	    }
-	    menu.wibox:emit_signal("property::current_focus")
+	    appmenu_data.wibox:emit_signal("property::current_focus")
 	end)
 
 	icon_container:connect_signal("mouse::leave", function()
-	    menu.current_focus = {
+	    appmenu_data.current_focus = {
 	        type = "pinned",
 	        index = nil,
 	        pin_focused = false
 	    }
-	    menu.wibox:emit_signal("property::current_focus")
+	    appmenu_data.wibox:emit_signal("property::current_focus")
 	end)
 
     return icon_container
@@ -325,7 +342,7 @@ function create_entry(app, index)
     }
     
     -- Check if app is pinned
-    for _, pinned_app in ipairs(menu.pinned_apps) do
+    for _, pinned_app in ipairs(appmenu_data.pinned_apps) do
         if pinned_app.name == app.name then
             widget.is_pinned = true
             break
@@ -364,7 +381,7 @@ function create_entry(app, index)
 
     -- Create pin button
     widget.pin_button = create_image_button({
-	    image_path = widget.is_pinned and menu.icons.pinned or menu.icons.pin,
+	    image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
 	    image_size = dpi(24),
 	    padding = dpi(6),
 	    opacity = 0.8,
@@ -434,10 +451,10 @@ function create_entry(app, index)
         self.pin_button.bg = theme.appmenu.pin_button_bg
 	end
     function widget:update_state()
-	    if menu.current_focus.type == "apps" and menu.current_focus.index == index then
+	    if appmenu_data.current_focus.type == "apps" and appmenu_data.current_focus.index == index then
 	        self.pin_button.visible = true
 	        
-	        if menu.current_focus.pin_focused then
+	        if appmenu_data.current_focus.pin_focused then
 	            self.background.bg = theme.appmenu.button_bg
 	            self.background.fg = theme.appmenu.fg
 	            self.pin_button:update_colors(theme.appmenu.button_bg_focus)
@@ -453,17 +470,17 @@ function create_entry(app, index)
 	end
 
     -- Connect signals
-    menu.wibox:connect_signal("property::current_focus", function()
+    appmenu_data.wibox:connect_signal("property::current_focus", function()
         widget:update_state()
     end)
 
     widget.background:connect_signal("mouse::enter", function()
-        menu.current_focus = {
+        appmenu_data.current_focus = {
             type = "apps",
             index = index,
             pin_focused = false
         }
-        menu.wibox:emit_signal("property::current_focus")
+        appmenu_data.wibox:emit_signal("property::current_focus")
     end)
 
     widget.background:connect_signal("mouse::leave", function()
@@ -471,16 +488,16 @@ function create_entry(app, index)
     end)
 
     widget.pin_button:connect_signal("mouse::enter", function()
-        menu.current_focus = {
+        appmenu_data.current_focus = {
             type = "apps",
             index = index,
             pin_focused = true
         }
-        menu.wibox:emit_signal("property::current_focus")
+        appmenu_data.wibox:emit_signal("property::current_focus")
     end)
 
     widget.pin_button:connect_signal("mouse::leave", function()
-        menu.current_focus = {
+        appmenu_data.current_focus = {
             type = "apps",
             index = index,
             pin_focused = false
@@ -492,17 +509,17 @@ function create_entry(app, index)
     widget.background:buttons(gears.table.join(
 	    -- Normal click: Launch app
 	    awful.button({}, 1, function()
-	        if not menu.current_focus.pin_focused then
+	        if not appmenu_data.current_focus.pin_focused then
 	            awful.spawn(app.exec)
-	            menu.hide()
+	            appmenu_hide()
 	        end
 	        return true
 	    end),
 	    -- CTRL+click: Launch with sudo
 	    awful.button({ "Control" }, 1, function()
-	        if not menu.current_focus.pin_focused then
+	        if not appmenu_data.current_focus.pin_focused then
 	            run_with_sudo(app.exec)
-	            menu.hide()
+	            appmenu_hide()
 	        end
 	        return true
 	    end),
@@ -534,7 +551,7 @@ function create_pinned_row()
         spacing = dpi(8),
     }
 
-    for i, app in ipairs(menu.pinned_apps) do
+    for i, app in ipairs(appmenu_data.pinned_apps) do
         pinned_row:add(create_pinned_icon(app, i))
     end
 
@@ -549,7 +566,7 @@ function create_pinned_row()
             bg = theme.appmenu.bg,
             widget = wibox.container.background
         },
-        visible = #menu.pinned_apps > 0,
+        visible = #appmenu_data.pinned_apps > 0,
         layout = wibox.layout.fixed.horizontal
     }
 end
@@ -561,11 +578,11 @@ function create_current_view()
         spacing = dpi(6),
     }
 
-    local start_idx = menu.current_start
-    local end_idx = math.min(start_idx + menu.visible_entries - 1, #menu.filtered_list)
+    local start_idx = appmenu_data.current_start
+    local end_idx = math.min(start_idx + appmenu_data.visible_entries - 1, #appmenu_data.filtered_list)
 
     for i = start_idx, end_idx do
-        local app = menu.filtered_list[i]
+        local app = appmenu_data.filtered_list[i]
         if app then
             list_widget:add(create_entry(app, i))
         end
@@ -578,7 +595,7 @@ function create_search_box()
     local search_content = wibox.widget {
         {
             {
-                image = menu.icons.search,
+                image = appmenu_data.icons.search,
                 resize = true,
                 forced_width = dpi(18),
                 forced_height = dpi(18),
@@ -588,7 +605,7 @@ function create_search_box()
             valign = 'center',
             widget = wibox.container.place
         },
-        menu.search_textbox,
+        appmenu_data.search_textbox,
         spacing = dpi(8),
         layout = wibox.layout.fixed.horizontal
     }
@@ -610,7 +627,7 @@ function create_search_box()
 
     -- Update focus state
     local function update_focus()
-        if menu.current_focus.type == "search" then
+        if appmenu_data.current_focus.type == "search" then
             search_container.bg = theme.appmenu.button_bg_focus
             search_container.shape_border_color = theme.appmenu.button_border_focus .. "33"
         else
@@ -622,7 +639,7 @@ function create_search_box()
     update_focus() -- Initial state
 
     -- Subscribe to focus changes
-    menu.wibox:connect_signal("property::current_focus", update_focus)
+    appmenu_data.wibox:connect_signal("property::current_focus", update_focus)
 
     -- Create a separator widget for the bottom border
     local separator = wibox.widget {
@@ -647,7 +664,7 @@ function create_search_box()
                 spacing = dpi(1)
             },
             bg = theme.appmenu.bg,
-            visible = #menu.pinned_apps > 0,
+            visible = #appmenu_data.pinned_apps > 0,
             widget = wibox.container.background
         },
 
@@ -678,7 +695,7 @@ function filter_apps(search_term)
     local filtered = {}
     search_term = string.lower(search_term or "")
     
-    for _, app in ipairs(menu.desktop_entries) do
+    for _, app in ipairs(appmenu_data.desktop_entries) do
         if string.find(string.lower(app.name), search_term, 1, true) then
             table.insert(filtered, app)
         end
@@ -689,50 +706,50 @@ end
 
 -- Updates the filtered list based on search term
 function update_filtered_list(search_term)
-    menu.filtered_list = {}
+    appmenu_data.filtered_list = {}
     search_term = string.lower(search_term or "")
     
-    for _, app in ipairs(menu.desktop_entries) do
+    for _, app in ipairs(appmenu_data.desktop_entries) do
         if string.find(string.lower(app.name), search_term, 1, true) then
-            table.insert(menu.filtered_list, app)
+            table.insert(appmenu_data.filtered_list, app)
         end
     end
 end
 
 -- Updates the entire menu widget with new content
 function refresh_menu_widget()
-	if #menu.pinned_apps > 0 then
-		if menu.wibox.height < dpi(672) then menu.wibox.y = menu.wibox.y - 80 end
-		menu.wibox.height = dpi(672)
+	if #appmenu_data.pinned_apps > 0 then
+		if appmenu_data.wibox.height < dpi(672) then appmenu_data.wibox.y = appmenu_data.wibox.y - 80 end
+		appmenu_data.wibox.height = dpi(672)
 	else
-		if menu.wibox.height > dpi(590) then menu.wibox.y = menu.wibox.y + 80 end
-		menu.wibox.height = dpi(590)
+		if appmenu_data.wibox.height > dpi(590) then appmenu_data.wibox.y = appmenu_data.wibox.y + 80 end
+		appmenu_data.wibox.height = dpi(590)
 	end
-    if not menu.wibox then return end
-    menu.wibox.widget = create_search_box()
+    if not appmenu_data.wibox then return end
+    appmenu_data.wibox.widget = create_search_box()
 end
 
 -- Function to scroll the list
 function scroll_list(direction)
     if direction > 0 then  -- Scroll down
-        if menu.current_start + menu.visible_entries <= #menu.filtered_list then
-            menu.current_start = menu.current_start + 1
+        if appmenu_data.current_start + appmenu_data.visible_entries <= #appmenu_data.filtered_list then
+            appmenu_data.current_start = appmenu_data.current_start + 1
             -- Update focus if it's now out of view
-            if menu.current_focus.type == "apps" and 
-               menu.current_focus.index < menu.current_start then
-                menu.current_focus.index = menu.current_start
-                menu.wibox:emit_signal("property::current_focus")
+            if appmenu_data.current_focus.type == "apps" and 
+               appmenu_data.current_focus.index < appmenu_data.current_start then
+                appmenu_data.current_focus.index = appmenu_data.current_start
+                appmenu_data.wibox:emit_signal("property::current_focus")
             end
             refresh_menu_widget()
         end
     else  -- Scroll up
-        if menu.current_start > 1 then
-            menu.current_start = menu.current_start - 1
+        if appmenu_data.current_start > 1 then
+            appmenu_data.current_start = appmenu_data.current_start - 1
             -- Update focus if it's now out of view
-            if menu.current_focus.type == "apps" and 
-               menu.current_focus.index >= menu.current_start + menu.visible_entries then
-                menu.current_focus.index = menu.current_start + menu.visible_entries - 1
-                menu.wibox:emit_signal("property::current_focus")
+            if appmenu_data.current_focus.type == "apps" and 
+               appmenu_data.current_focus.index >= appmenu_data.current_start + appmenu_data.visible_entries then
+                appmenu_data.current_focus.index = appmenu_data.current_start + appmenu_data.visible_entries - 1
+                appmenu_data.wibox:emit_signal("property::current_focus")
             end
             refresh_menu_widget()
         end
@@ -741,24 +758,24 @@ end
 
 -- Add this function to handle ensuring the focused item is visible
 function ensure_focused_visible()
-    if menu.current_focus.type ~= "apps" then return end
+    if appmenu_data.current_focus.type ~= "apps" then return end
     
-    local index = menu.current_focus.index
+    local index = appmenu_data.current_focus.index
     if not index then return end
     
     -- If the focused index is before our current view
-    if index < menu.current_start then
-        menu.current_start = index
+    if index < appmenu_data.current_start then
+        appmenu_data.current_start = index
         refresh_menu_widget()
     -- If the focused index is after our current view
-    elseif index >= menu.current_start + menu.visible_entries then
-        menu.current_start = index - menu.visible_entries + 1
+    elseif index >= appmenu_data.current_start + appmenu_data.visible_entries then
+        appmenu_data.current_start = index - appmenu_data.visible_entries + 1
         refresh_menu_widget()
     end
 end
 
 function handle_keyboard_navigation(mod, key)
-    local focus = menu.current_focus
+    local focus = appmenu_data.current_focus
     
     -- Ensure focus has an index if it's not in pinned apps or app list
     if not focus.index then
@@ -769,7 +786,7 @@ function handle_keyboard_navigation(mod, key)
     if key == "Up" then
         if focus.type == "apps" then
             -- From app list, go to pinned apps if at top
-            if focus.index == 1 and #menu.pinned_apps > 0 then
+            if focus.index == 1 and #appmenu_data.pinned_apps > 0 then
                 focus.type = "pinned"
                 focus.index = 1
                 focus.pin_focused = false
@@ -790,7 +807,7 @@ function handle_keyboard_navigation(mod, key)
             ensure_focused_visible()
         elseif focus.type == "apps" then
             -- Move down in app list if not at end
-            if focus.index < #menu.filtered_list then
+            if focus.index < #appmenu_data.filtered_list then
                 focus.index = focus.index + 1
                 focus.pin_focused = false
                 ensure_focused_visible()
@@ -811,7 +828,7 @@ function handle_keyboard_navigation(mod, key)
     elseif key == "Right" then
         if focus.type == "pinned" then
             -- Navigate right in pinned apps
-            if focus.index < #menu.pinned_apps then
+            if focus.index < #appmenu_data.pinned_apps then
                 focus.index = focus.index + 1
             end
         elseif focus.type == "apps" and not focus.pin_focused then
@@ -821,7 +838,7 @@ function handle_keyboard_navigation(mod, key)
 
     elseif key == "Tab" and focus.type == "pinned" then
         -- Navigate right in pinned apps
-        if focus.index < #menu.pinned_apps then
+        if focus.index < #appmenu_data.pinned_apps then
             focus.index = focus.index + 1
         else 
             focus.index = 1
@@ -836,7 +853,7 @@ function handle_keyboard_navigation(mod, key)
        		end
         end
         if focus.type == "apps" then
-            local app = menu.filtered_list[focus.index]
+            local app = appmenu_data.filtered_list[focus.index]
 			 if focus.pin_focused then
                 toggle_pin(app)
             else
@@ -846,19 +863,19 @@ function handle_keyboard_navigation(mod, key)
                     else
                         awful.spawn(app.exec)
                     end
-                    menu.hide()
+                    appmenu_hide()
                 end
             end
         elseif focus.type == "pinned" then
-            local pinned = menu.pinned_apps[focus.index]
+            local pinned = appmenu_data.pinned_apps[focus.index]
             if pinned then
                 -- Launch pinned app with or without sudo
                 if is_ctrl then
-                    run_with_sudo(menu.pinned_apps[focus.index].exec)
+                    run_with_sudo(appmenu_data.pinned_apps[focus.index].exec)
                 else
-                    awful.spawn(menu.pinned_apps[focus.index].exec)
+                    awful.spawn(appmenu_data.pinned_apps[focus.index].exec)
                 end
-                menu.hide()
+                appmenu_hide()
             end
         end
     elseif key == "Home" then
@@ -874,17 +891,17 @@ function handle_keyboard_navigation(mod, key)
     elseif key == "End" then
         if focus.type == "apps" then
             -- Go to last app
-            focus.index = #menu.filtered_list
+            focus.index = #appmenu_data.filtered_list
             focus.pin_focused = false
             ensure_focused_visible()
         elseif focus.type == "pinned" then
             -- Go to last pinned app
-            focus.index = #menu.pinned_apps
+            focus.index = #appmenu_data.pinned_apps
         end
     end
     
     -- Emit focus change signal
-    menu.wibox:emit_signal("property::current_focus")
+    appmenu_data.wibox:emit_signal("property::current_focus")
 end
 
 function run_with_sudo(command)
@@ -899,35 +916,35 @@ function run_with_sudo(command)
 end
 
 function preserve_focus_state()
-    menu.last_focus = {
-        type = menu.current_focus.type,
-        index = menu.current_focus.index,
-        pin_focused = menu.current_focus.pin_focused
+    appmenu_data.last_focus = {
+        type = appmenu_data.current_focus.type,
+        index = appmenu_data.current_focus.index,
+        pin_focused = appmenu_data.current_focus.pin_focused
     }
 end
 
 -- Add this function to restore focus state
 function restore_focus_state()
-    if menu.last_focus then
-        menu.current_focus = menu.last_focus
-        menu.wibox:emit_signal("property::current_focus")
-        menu.last_focus = nil
+    if appmenu_data.last_focus then
+        appmenu_data.current_focus = appmenu_data.last_focus
+        appmenu_data.wibox:emit_signal("property::current_focus")
+        appmenu_data.last_focus = nil
     end
 end
 
-function menu.create()
+function appmenu_create()
     -- Scan for applications if not already done
-    if #menu.desktop_entries == 0 then
+    if #appmenu_data.desktop_entries == 0 then
         scan_desktop_files()
     end
 
     -- Create search textbox
-    menu.search_textbox = wibox.widget {
+    appmenu_data.search_textbox = wibox.widget {
         widget = wibox.widget.textbox,
         id = "search_input",
         text = "",
         valign = 'center',
-        font = menu.font,
+        font = appmenu_data.font,
         forced_height = dpi(24)
     }
 
@@ -938,11 +955,11 @@ function menu.create()
     return create_search_box()
 end
 
-function menu.init()
+function appmenu_init()
     -- Load pinned apps when initializing
     load_pinned_apps()
 
-    menu.wibox = wibox{
+    appmenu_data.wibox = wibox{
         screen = mouse.screen, -- Use current mouse screen instead of screen[1]
         width = dpi(500),
         height = dpi(672),
@@ -954,19 +971,19 @@ function menu.init()
         type = "normal"
     }
 
-    menu.wibox.shape = function(cr, width, height)
+    appmenu_data.wibox.shape = function(cr, width, height)
         gears.shape.rounded_rect(cr, width, height, dpi(16))
     end
 
-    menu.wibox.widget = menu.create()
+    appmenu_data.wibox.widget = appmenu_create()
 
-    menu.wibox:buttons(gears.table.join(
+    appmenu_data.wibox:buttons(gears.table.join(
         awful.button({ }, 1, nil),
         awful.button({ }, 4, function() scroll_list(-1) end),
         awful.button({ }, 5, function() scroll_list(1) end)
     ))
 
-    menu.keygrabber = awful.keygrabber {
+    appmenu_data.keygrabber = awful.keygrabber {
         autostart = false,
         keypressed_callback = function(_, mod, key)
             -- Preserve focus state when Control is pressed
@@ -976,7 +993,7 @@ function menu.init()
             end
             
             if key == "Escape" then
-                menu.hide()
+                appmenu_hide()
                 return
             end
             
@@ -989,23 +1006,23 @@ function menu.init()
             end
             
             -- Always handle search input
-            menu.current_filter = menu.current_filter or ""
+            appmenu_data.current_filter = appmenu_data.current_filter or ""
             
             if key == "BackSpace" then
-                if #menu.current_filter > 0 then
-                    menu.current_filter = string.sub(menu.current_filter, 1, -2)
+                if #appmenu_data.current_filter > 0 then
+                    appmenu_data.current_filter = string.sub(appmenu_data.current_filter, 1, -2)
                 end
             elseif #key == 1 then
-                menu.current_filter = menu.current_filter .. key
+                appmenu_data.current_filter = appmenu_data.current_filter .. key
             end
             
-            if menu.search_textbox then
-                menu.search_textbox.text = menu.current_filter
-                menu.current_start = 1
-                update_filtered_list(menu.current_filter)
+            if appmenu_data.search_textbox then
+                appmenu_data.search_textbox.text = appmenu_data.current_filter
+                appmenu_data.current_start = 1
+                update_filtered_list(appmenu_data.current_filter)
                 
                 -- Reset focus to first item in filtered list
-                menu.current_focus = {
+                appmenu_data.current_focus = {
                     type = "apps",
                     index = 1,
                     pin_focused = false
@@ -1021,61 +1038,73 @@ function menu.init()
             end
         end,
         stop_callback = function()
-            menu.wibox.visible = false
+            appmenu_data.wibox.visible = false
         end
     }
 
-    return menu.wibox
+    return appmenu_data.wibox
 end
 
-function menu.show()
-    if menu.wibox then
-        scan_desktop_files()
+function appmenu_show()
+    if appmenu_data.wibox then
+		scan_desktop_files()
         -- Update to current screen
-        menu.wibox.screen = mouse.screen
+        appmenu_data.wibox.screen = mouse.screen
+
+		-- Force focus to our menu wibox to release game input capture
+        if client.focus then
+            client.focus = nil
+        end
         
         -- Rest of your existing show code...
-        menu.current_filter = ""
-        menu.current_start = 1
-        menu.current_focus = {
+        appmenu_data.current_filter = ""
+        appmenu_data.current_start = 1
+        appmenu_data.current_focus = {
             type = "pinned",
             index = 1,
             pin_focused = false
         }
-        if menu.search_textbox then
-            menu.search_textbox.text = ""
+        if appmenu_data.search_textbox then
+            appmenu_data.search_textbox.text = ""
         end
         update_filtered_list("")
         refresh_menu_widget()
-        menu.wibox:emit_signal("property::current_focus")
-        menu.wibox.visible = true
-        awful.placement.centered(menu.wibox)
-        if menu.keygrabber then
-            menu.keygrabber:start()
+        appmenu_data.wibox:emit_signal("property::current_focus")
+        appmenu_data.wibox.visible = true
+        awful.placement.centered(appmenu_data.wibox)
+        if appmenu_data.keygrabber then
+            appmenu_data.keygrabber:start()
         end
     end
 end
 
-function menu.hide()
-    if menu.wibox then
-        menu.wibox.visible = false
-        if menu.keygrabber then
-            menu.keygrabber:stop()
+function appmenu_hide()
+    if appmenu_data.wibox then
+        appmenu_data.wibox.visible = false
+        if appmenu_data.keygrabber then
+            appmenu_data.keygrabber:stop()
         end
-        menu.current_focus = {
+        appmenu_data.current_focus = {
             type = "search",
             index = nil,
             pin_focused = false
         }
-        menu.wibox:emit_signal("property::current_focus")
+        appmenu_data.wibox:emit_signal("property::current_focus")
+        
+        -- Focus the client under the mouse cursor
+        local c = awful.mouse.client_under_pointer()
+        if c then
+            client.focus = c
+            c:raise()
+        end
     end
 end
 
-function menu.toggle()
-    if menu.wibox and menu.wibox.visible then
-        menu.hide()
+function appmenu_toggle()
+    if appmenu_data.wibox and appmenu_data.wibox.visible then
+        appmenu_hide()
     else
-        menu.show()
+        appmenu_show()
     end
 end
 

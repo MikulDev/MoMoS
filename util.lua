@@ -165,4 +165,41 @@ function add_hover_cursor(widget)
     end)
 end
 
+function math.clamp(val, lower, upper)
+    if lower > upper then lower, upper = upper, lower end
+    return math.max(lower, math.min(upper, val))
+end
+
+-- {{{ Window management functions
+
+function get_focused_client()
+   return client.focus
+end
+
+function clamp_window_bounds(c)
+    local geo = c.screen:get_bounding_geometry({honor_padding  = true, honor_workarea = true})
+    local winWidth = c.width
+    local winHeight = c.height
+    c.x = math.clamp(c.x, geo.x, geo.width - winWidth + geo.x)
+    c.y = math.clamp(c.y, geo.y, geo.height - winHeight + geo.y)
+end
+
+-- Focuses the window currently under the mouse
+-- Called when the window layout changes (window spawned/killed, tag changed, etc.)
+function set_focus_to_mouse()
+    if not (focusing or switcher_open) then
+        local focus_timer = timer({ timeout = 0.1 })
+        focus_timer:connect_signal("timeout", function()
+            local c = awful.mouse.client_under_pointer()
+            if not (c == nil) then
+                client.focus = c
+                c:raise()
+            end
+            focus_timer:stop()
+        end)
+        focus_timer:start()
+    end
+end
+-- }}}
+
 return util
