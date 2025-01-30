@@ -113,15 +113,19 @@ theme.calendar.bg = theme.pitch_black .. "dd"
 theme.calendar.date_bg = theme.dark_gray .. "66"
 theme.calendar.date_bg_current = theme.selected .. "40"
 theme.calendar.date_bg_hover = theme.selected .. "25"
+theme.calendar.button_bg = theme.dark_gray .. "dd"
+theme.calendar.button_bg_focus = theme.selected_dark .. "77"
 theme.calendar.month_fg = theme.white
 theme.calendar.day_fg = theme.white .. "aa"
 theme.calendar.date_fg = theme.light_gray .. "ff"
 theme.calendar.date_fg_hover = theme.white
 theme.calendar.date_fg_current = theme.white
-theme.calendar.border = theme.gray
+theme.calendar.border = "#3C3C3C" .. "00"
 theme.calendar.date_border = theme.light_gray
 theme.calendar.date_border_hover = theme.white
 theme.calendar.date_border_current = theme.white
+theme.calendar.button_border = theme.light_gray .. "66"
+theme.calendar.button_border_focus = theme.white .. "88"
 
 -- There are other variable sets
 -- overriding the default one when

@@ -1,6 +1,7 @@
 local awful = require("awful")
 local beautiful = require("beautiful")
 local gears = require("gears")
+local naughty = require("naughty")
 local cairo = require("lgi").cairo
 local wibox = require("wibox")
 local dpi = require("beautiful.xresources").apply_dpi
@@ -18,6 +19,7 @@ function create_image_button(args)
     local image_size = args.image_size or dpi(24)
     local padding = args.padding or dpi(6)
     local opacity = args.opacity or 1.0
+	local opacity_hover = args.opacity_hover or opacity or 1
     local bg_color = args.bg_color or theme.appmenu.button_bg
     local border_color = args.border_color or theme.appmenu.border .. "55"
     local hover_bg = args.hover_bg or theme.appmenu.button_bg_focus
@@ -31,19 +33,20 @@ function create_image_button(args)
     -- Create the image or fallback text widget
     local content_widget
     if image_path then
-        content_widget = wibox.widget {
-            {
-                image = image_path,
-                resize = true,
-                forced_width = image_size,
-                forced_height = image_size,
-                opacity = opacity,
-                widget = wibox.widget.imagebox
-            },
-            margins = padding,
-            widget = wibox.container.margin
-        }
-    else
+	    content_widget = wibox.widget {
+	        {
+	            image = image_path,
+	            resize = true,
+	            forced_width = image_size,
+	            forced_height = image_size,
+	            opacity = opacity,
+	            widget = wibox.widget.imagebox,
+	            id = 'icon'
+	        },
+	        margins = padding,
+	        widget = wibox.container.margin
+	    }
+	else
         content_widget = wibox.widget {
             {
                 text = fallback_text,
@@ -79,14 +82,24 @@ function create_image_button(args)
 
     -- Mouse hover effects
     button:connect_signal("mouse::enter", function()
-        button.bg = hover_bg
-        button.shape_border_color = hover_border
-    end)
+	    -- Change button colors
+	    button.bg = hover_bg
+	    button.shape_border_color = hover_border
+	    -- Change icon opacity
+	    local imagebox = button.widget:get_children_by_id('icon')[1]
+	    if imagebox then imagebox.opacity = opacity_hover end
+	end)
+	
+	button:connect_signal("mouse::leave", function()
+	    -- Reset button colors
+	    button.bg = bg_color
+	    button.shape_border_color = border_color
+	    -- Reset icon opacity
+	    local imagebox = button.widget:get_children_by_id('icon')[1]
+	    if imagebox then imagebox.opacity = opacity end
+	end)
 
-    button:connect_signal("mouse::leave", function()
-        button.bg = bg_color
-        button.shape_border_color = border_color
-    end)
+	add_hover_cursor(button)
 
     -- Click handlers
     local click_handlers = {}
@@ -124,6 +137,32 @@ function create_image_button(args)
     end
 
     return button
+end
+
+function add_hover_cursor(widget)
+    -- Store cursor state for this specific widget
+    local widget_state = {
+        old_cursor = nil,
+        old_wibox = nil
+    }
+
+    widget:connect_signal("mouse::enter", function(w)
+        if w == widget then
+            local wibox = mouse.current_wibox
+            widget_state.old_cursor = wibox.cursor
+            widget_state.old_wibox = wibox
+            wibox.cursor = "hand2"
+        end
+    end)
+    
+    widget:connect_signal("mouse::leave", function(w)
+        if w == widget then
+            if widget_state.old_wibox then
+                widget_state.old_wibox.cursor = widget_state.old_cursor
+                widget_state.old_wibox = nil
+            end
+        end
+    end)
 end
 
 return util
