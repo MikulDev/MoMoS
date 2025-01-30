@@ -1025,22 +1025,42 @@ client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_n
 
 -- {{{ Random Wallpapers
 
-function scanDir(directory)
+function scanDir(directory, file_extensions)
     local i, fileList = 0, {}
     local cmd = string.format([[find %s -type f]], directory)
-    for filename in io.popen(cmd):lines() do
-        i = i + 1
-        fileList[i] = filename
+    
+    -- Create a lookup table for extensions if provided
+    local ext_lookup = {}
+    if file_extensions then
+        for _, ext in ipairs(file_extensions) do
+            ext_lookup[ext:lower()] = true
+        end
     end
+    
+    for filename in io.popen(cmd):lines() do
+        -- If no extensions specified, include all files
+        if not file_extensions then
+            i = i + 1
+            fileList[i] = filename
+        else
+            -- Extract the file extension
+            local ext = filename:match("%.([^%.]+)$")
+            if ext and ext_lookup[ext:lower()] then
+                i = i + 1
+                fileList[i] = filename
+            end
+        end
+    end
+    
     return fileList
 end
 
 -- Get the list of files from a directory. Must be all images or folders and non-empty.
-local wallpaperList = scanDir(config_dir .. "wallpapers/")
+local wallpaperList = scanDir(config_dir .. "wallpapers/", {"png", "jpg", "jpeg", "svg"})
 
 if #wallpaperList > 0 then
     -- Apply a random wallpaper every 10 minutes
-    changeTime = 600 -- interval
+    changeTime = config.wallpaper_interval -- interval
 
     wallpaperTimer = timer { timeout = changeTime }
     local prevWallInt = -1
@@ -1052,12 +1072,16 @@ if #wallpaperList > 0 then
         while(newWallInt == prevWallInt) do
             newWallInt = math.random(1, #wallpaperList)
         end
+		
+		local wallpaper = wallpaperList[newWallInt]
         -- Set the wallpaper
-        gears.wallpaper.tiled(wallpaperList[newWallInt], s)
+		if not wallpaper then
+			naughty.notify({text = "could not find wallpaper " .. wallpaper})
+		end
+        gears.wallpaper.tiled(wallpaper, s)
     end)
     -- Trigger the wallpaper function once on startup
     wallpaperTimer:emit_signal("timeout")
-    -- }}}
 
     -- initial start when rc.lua is first run
     wallpaperTimer:start()
