@@ -774,7 +774,7 @@ function ensure_focused_visible()
     end
 end
 
-function handle_keyboard_navigation(mod, key)
+local function handle_keyboard_navigation(mod, key)
     local focus = appmenu_data.current_focus
     
     -- Ensure focus has an index if it's not in pinned apps or app list
