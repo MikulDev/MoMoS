@@ -26,15 +26,13 @@ local naughty = require("naughty")
 local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
 
--- Load the menu module
+-- Menus/Widgets
 local appmenu = require("appmenu")
-appmenu_init()
-
--- Calendar
 local calendar = require("calendar")
-
--- Switcher
 local switcher = require("switcher")
+local shutdown = require("shutdown")
+appmenu_init()
+shutdown_init()
 
 -- Config settings
 local config = require("config")
@@ -718,7 +716,7 @@ awful.key({ modkey }, "b", function() awful.spawn(bluetooth) end,
 {description = "open bluetooth menu", group = "client"}),
 awful.key({ modkey, "Control" }, "r", awesome.restart,
 {description = "reload awesome", group = "awesome"}),
-awful.key({ modkey, "Control"   }, "q", awesome.quit,
+awful.key({ modkey, "Control"   }, "q", shutdown_toggle,
 {description = "quit awesome", group = "awesome"}),
 
 awful.key({ modkey,           }, "]",     function () awful.tag.incmwfact( 0.05)          end,
@@ -1022,7 +1020,11 @@ end)
 
 -- Enable sloppy focus, so that focus follows mouse.
 client.connect_signal("mouse::enter", function(c)
-    if (client.focus ~= c and not switcher_data.is_open and not appmenu_data.wibox.visible) then
+    if (client.focus ~= c 
+		and not switcher_data.is_open 
+		and not appmenu_data.wibox.visible 
+		and not shutdown_data.wibox.visible) 
+	then
         c:emit_signal("request::activate", "mouse_enter", {raise = false})
     end
 end)

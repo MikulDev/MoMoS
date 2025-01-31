@@ -35,7 +35,7 @@ local tag_shape = function(cr, width, height)
 end
 
 function font_with_size(size)
-	return theme.font .. " " .. size
+	return (theme.font or "Sans") .. " " .. size
 end
 
 theme.font = "Gadugi Normal"
@@ -91,7 +91,7 @@ theme.tasklist_shape_border_width = 1
 
 -- Notifications
 theme.notification_icon_size = dpi(60)
-theme.notification_font = font_with_size(dpi(12))
+theme.notification_font = font_with_size(dpi(13))
 theme.notification_shape = tag_shape
 theme.notification_bg = black .. "b0"
 theme.notification_border_color = gray
@@ -110,6 +110,14 @@ theme.appmenu.fg = theme.light_gray .. "d0"
 theme.appmenu.border = theme.gray
 theme.appmenu.button_border = theme.light_gray
 theme.appmenu.button_border_focus = theme.white
+
+-- Shutdown
+theme.shutdown = {}
+theme.shutdown.bg = theme.pitch_black .. "88"
+theme.shutdown.button_bg = theme.dark_gray .. "dd"
+theme.shutdown.button_bg_focus = theme.selected_dark .. "77"
+theme.shutdown.fg = theme.light_gray .. "d0"
+theme.shutdown.border = theme.gray
 
 -- Calendar
 theme.calendar = {}

@@ -80,8 +80,8 @@ function create_image_button(args)
         button.forced_height = button_size
     end
 
-    -- Mouse hover effects
-    button:connect_signal("mouse::enter", function()
+    -- Hover effects
+	button:connect_signal("button::focus", function()
 	    -- Change button colors
 	    button.bg = hover_bg
 	    button.shape_border_color = hover_border
@@ -90,13 +90,21 @@ function create_image_button(args)
 	    if imagebox then imagebox.opacity = opacity_hover end
 	end)
 	
-	button:connect_signal("mouse::leave", function()
+	button:connect_signal("button::unfocus", function()
 	    -- Reset button colors
 	    button.bg = bg_color
 	    button.shape_border_color = border_color
 	    -- Reset icon opacity
 	    local imagebox = button.widget:get_children_by_id('icon')[1]
 	    if imagebox then imagebox.opacity = opacity end
+	end)
+
+	button:connect_signal("mouse::enter", function()
+	    button:emit_signal("button::focus")
+	end)
+
+	button:connect_signal("mouse::leave", function()
+	    button:emit_signal("button::unfocus")
 	end)
 
 	add_hover_cursor(button)
