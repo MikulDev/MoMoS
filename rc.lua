@@ -13,6 +13,8 @@ require("awful.autofocus")
 
 local config_dir = gears.filesystem.get_configuration_dir()
 
+local theme = dofile(config_dir .. "theme.lua")
+
 -- Widget and layout library
 local wibox = require("wibox")
 
@@ -266,40 +268,6 @@ menubar.utils.terminal = terminal -- Set the terminal for applications that requ
 mykeyboardlayout = awful.widget.keyboardlayout()
 
 -- {{{ Wibar
--- Create a textclock widget
-mytextclock = wibox.widget {
-    {
-        {
-            {
-                {
-                    format = '<span foreground="' .. beautiful.fg_focus .. "dd" .. '">%a, %b %d</span>',
-                    font = "Gadugi Normal " .. dpi(10),
-                    widget = wibox.widget.textclock
-                },
-                top = dpi(-1),
-                widget = wibox.container.margin
-            },
-            halign = "right",
-            widget = wibox.container.place,
-        },
-        {
-            {
-                format = '<span foreground="' .. beautiful.fg_focus .. "dd" .. '">%I:%M %p</span>',
-                font = "Gadugi Normal " .. dpi(12),
-                widget = wibox.widget.textclock
-            },
-            halign = "right",
-            widget = wibox.container.place,
-        },
-        layout  = wibox.layout.align.vertical
-    },
-    align = "center",
-    widget = wibox.container.place,
-}
-
--- Attach calendar to textclock
-local my_calendar = calendar.new()
-my_calendar:attach(mytextclock)
 
 -- Create a wibox for each screen and add it
 local taglist_buttons = gears.table.join(
@@ -531,6 +499,47 @@ awful.screen.connect_for_each_screen(function(s)
         buttons = tasklist_buttons
     }
 
+	-- Create a textclock widget
+	s.mytextclock = wibox.widget {
+        {
+            {
+                {
+                    {
+                        format = string.format(
+                            '<span foreground="%s">%%a, %%b %%d</span>',
+                            theme.clock.fg
+                        ),
+                        font = font_with_size(dpi(10)),
+                        widget = wibox.widget.textclock
+                    },
+                    top = dpi(-1),
+                    widget = wibox.container.margin
+                },
+                halign = "right",
+                widget = wibox.container.place,
+            },
+            {
+                {
+                    format = string.format(
+                        '<span foreground="%s">%%I:%%M %%p</span>',
+                        theme.clock.fg
+                    ),
+                    font = font_with_size(dpi(12)),
+                    widget = wibox.widget.textclock
+                },
+                halign = "right",
+                widget = wibox.container.place,
+            },
+            layout = wibox.layout.align.vertical
+        },
+        align = "center",
+        widget = wibox.container.place,
+    }
+
+	-- Create a calendar instance for this screen
+    local screen_calendar = calendar.new()
+    screen_calendar:attach(s.mytextclock, s)
+
     local squircle = function(cr, width, height)
         gears.shape.rounded_rect(cr, width, height, 4)
     end
@@ -580,9 +589,9 @@ awful.screen.connect_for_each_screen(function(s)
 
 	-- Add widgets to the wibox
     s.mywibox:setup({
-       	layout = wibox.layout.align.horizontal,
-		-- Left widgets		
-        {   
+        layout = wibox.layout.align.horizontal,
+        -- Left widgets
+        {
             layout = wibox.layout.fixed.horizontal,
             make_spacer(dpi(8)),
             mylauncher,
@@ -602,26 +611,25 @@ awful.screen.connect_for_each_screen(function(s)
             },
             s.mypromptbox,
         },
-		-- Middle widgets
+        -- Middle widgets
         nil,
-		-- Right widgets
-        {    
-		     layout = wibox.layout.fixed.horizontal,
-		     --mykeyboardlayout,
-		     make_spacer(dpi(12)),
-		     {
-		         systray_widget,
-		         top = dpi(4),
-		         bottom = dpi(4),
-		         widget = wibox.container.margin
-		     },
-		     make_spacer(dpi(12)),
-		     make_divider(1, dpi(8)),
-		     make_spacer(dpi(12)),
-		     mytextclock,
-		     make_spacer(dpi(12)),
-		     make_divider(1, dpi(4)),
-		},
+        -- Right widgets
+        {
+            layout = wibox.layout.fixed.horizontal,
+            make_spacer(dpi(12)),
+            {
+                systray_widget,
+                top = dpi(4),
+                bottom = dpi(4),
+                widget = wibox.container.margin
+            },
+            make_spacer(dpi(12)),
+            make_divider(1, dpi(8)),
+            make_spacer(dpi(12)),
+            s.mytextclock,  -- Use the screen-specific textclock
+            make_spacer(dpi(12)),
+            make_divider(1, dpi(4)),
+        },
     })
     globalWibox = s.mywibox
 end)

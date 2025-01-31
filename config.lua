@@ -22,6 +22,7 @@ config.screenshot_path = "$HOME/Screenshots/"
 -- Only for monitors wider than 16:9
 -- Some applications (like recording software) don't acknowledge the split
 config.split_ultrawide = true
+
 config.wallpaper_interval = 600
 
 -- }}}

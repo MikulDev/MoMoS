@@ -316,79 +316,78 @@ function calendar.new()
     cal:update_grid()
 
     -- Attach to a widget
-    function cal:attach(widget)
+    function cal:attach(widget, screen)
         -- Pre-render the calendar once to get correct sizes
-        cal:update_header()
-        cal:update_grid()
-        
-        local function position_calendar()
-            local s = awful.screen.focused()
-            cal.popup.x = s.geometry.width - cal.popup.width - dpi(10)
-            cal.popup.y = s.geometry.y + beautiful.wibar_height + dpi(10)
-        end
-
-        local hovered = false
-
-		local function show_calendar()
-			cal.current_date = os.date("*t")
-		    -- Update calendar when shown
-		    cal:update_header()
-		    cal:update_grid()
-		    
-		    -- Show calendar
-		    if not cal.popup.visible then
-		        cal.popup.visible = true
-		        -- Wait for calendar to fully init before positioning
-		        gears.timer.start_new(0.01, function()
-		            position_calendar()
-		            return false
-		        end)
-		    end
-		end
+	    cal:update_header()
+	    cal:update_grid()
+	    
+	    local function position_calendar()
+	        -- Use the stored screen reference
+	        local widget_screen = screen
+	        if not widget_screen then return end
+	        
+	        -- Calculate position relative to the screen's geometry
+	        cal.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - cal.popup.width - dpi(10)
+	        cal.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
+	    end
+	
+	    local function show_calendar()
+	        cal.current_date = os.date("*t")
+	        cal:update_header()
+	        cal:update_grid()
+	        
+	        if not cal.popup.visible then
+	            cal.popup.screen = screen
+	            cal.popup.visible = true
+	            gears.timer.start_new(0.01, function()
+	                position_calendar()
+	                return false
+	            end)
+	        end
+	    end
 		
 		local function hide_calendar()
-		    if cal.popup.visible then
-		        cal.popup.visible = false
-		    end
-		end
-		
-		-- Connect signals
-		widget:connect_signal("mouse::enter", function()
-		    show_calendar()
-		    hovered = true
-		end)
-		
-		widget:connect_signal("mouse::leave", function()
-		    hovered = false
-		    gears.timer.start_new(0.1, function()
-		        if not hovered then
-		            hide_calendar()   
-		        end         	
-		        return false
-		    end)
-		end)
-		
-		cal.popup:connect_signal("mouse::enter", function() 
-		    hovered = true 
-		end)
-		
-		cal.popup:connect_signal("mouse::leave", function() 
-		    hovered = false
-		    gears.timer.start_new(0.1, function()
-		        if not hovered then
-		            hovered = false 
-		            hide_calendar() 
-		        end         	
-		        return false
-		    end)
-		end)
-		
-		-- Add right-click handler
-		cal.popup:connect_signal("button::press", function(_, _, _, button)
-		    if button == 3 then  -- Right click
-		        hide_calendar()
-		    end
-		end)
+            if cal.popup.visible then
+                cal.popup.visible = false
+            end
+        end
+        
+        widget:connect_signal("mouse::enter", function()
+            show_calendar()
+            hovered = true
+        end)
+        
+        widget:connect_signal("mouse::leave", function()
+            hovered = false
+            gears.timer.start_new(0.1, function()
+                if not hovered then
+                    hide_calendar()   
+                end         	
+                return false
+            end)
+        end)
+        
+        cal.popup:connect_signal("mouse::enter", function() 
+            hovered = true 
+        end)
+        
+        cal.popup:connect_signal("mouse::leave", function() 
+            hovered = false
+            gears.timer.start_new(0.1, function()
+                if not hovered then
+                    hovered = false 
+                    hide_calendar() 
+                end         	
+                return false
+            end)
+        end)
+        
+        -- Add right-click handler
+        cal.popup:connect_signal("button::press", function(_, _, _, button)
+            if button == 3 then  -- Right click
+                hide_calendar()
+            end
+        end)
     end
 
     return cal

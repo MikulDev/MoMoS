@@ -34,9 +34,13 @@ local tag_shape = function(cr, width, height)
     gears.shape.rounded_rect(cr, width, height, 4)
 end
 
+function font_with_size(size)
+	return theme.font .. " " .. size
+end
+
 theme.font = "Gadugi Normal"
-theme.taglist_font  = theme.font .. " " .. dpi(13)
-theme.tasklist_font = theme.font .. " " .. dpi(11)
+theme.taglist_font  = font_with_size(dpi(13))
+theme.tasklist_font = font_with_size(dpi(11))
 
 theme.bg_normal     = pitch_black .. "da"
 theme.bg_systray    = black
@@ -87,7 +91,7 @@ theme.tasklist_shape_border_width = 1
 
 -- Notifications
 theme.notification_icon_size = dpi(60)
-theme.notification_font = "Gadugi Normal 12"
+theme.notification_font = font_with_size(dpi(12))
 theme.notification_shape = tag_shape
 theme.notification_bg = black .. "b0"
 theme.notification_border_color = gray
@@ -126,6 +130,10 @@ theme.calendar.date_border_hover = theme.white
 theme.calendar.date_border_current = theme.white
 theme.calendar.button_border = theme.light_gray .. "66"
 theme.calendar.button_border_focus = theme.white .. "88"
+
+-- Clock
+theme.clock = {}
+theme.clock.fg = theme.white .. "aa"
 
 -- There are other variable sets
 -- overriding the default one when
