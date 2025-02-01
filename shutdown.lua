@@ -137,8 +137,7 @@ function create_overlay()
         ontop = true,  -- Set back to true
         below = true,  -- This will place it below other ontop windows
         type = "utility",  -- Change type to utility
-        bg = "#00000000",
-        input_passthrough = true,
+        bg = "#00000050",
     })
     
     -- Update overlay size and position when screen geometry changes
