@@ -86,12 +86,18 @@ function create_action_button(action, index)
     container.update_focus = function()
         if shutdown_data.current_index == index then
             button:emit_signal("button::focus")
-            label.fg = theme.shutdown.fg_focus
         else
             button:emit_signal("button::unfocus")
             label.fg = theme.shutdown.fg
         end
     end
+
+	button:connect_signal("button::focus", function()
+		label.fg = theme.shutdown.fg_focus
+	end)
+	button:connect_signal("button::unfocus", function()
+		label.fg = theme.shutdown.fg
+	end)
     
     button:connect_signal("mouse::enter", function()
         shutdown_data.current_index = index
