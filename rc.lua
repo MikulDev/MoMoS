@@ -34,6 +34,9 @@ local shutdown = require("shutdown")
 appmenu_init()
 shutdown_init()
 
+-- Notification storage
+local notifications = require("notifications")
+
 -- Config settings
 local config = require("config")
 
@@ -95,7 +98,7 @@ do
 end
 -- }}}
 
-naughty.config.defaults.timeout = 20
+naughty.config.defaults.timeout = 0
 
 --- {{{ App Menu
 
@@ -125,21 +128,6 @@ function make_spacer(width)
     return wibox.widget {
         left = width,
         widget  = wibox.container.margin
-    }
-end
-
--- Makes a vertical line widget with the specified width and margin
-function make_divider(width, margin)
-    return wibox.widget {
-        {
-            color = beautiful.taglist_shape_border_color,
-            orientation = "vertical",
-            forced_width = width,
-            widget  = wibox.widget.separator
-        },
-        top = margin,
-        bottom = margin,
-        widget = wibox.container.margin
     }
 end
 
@@ -244,18 +232,42 @@ mymainmenu = awful.menu({ items = {
 })
 
 mylauncher = wibox.widget {
-    {
-        {
-            widget = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png",
-            menu = mymainmenu})
-        },
-        strategy = "exact",
-        width = dpi(30),
-        force_height = dpi(40),
-        widget = wibox.container.constraint,
-    },
-    align = "center",
-    widget = wibox.container.place,
+	{
+		{
+			{
+				{
+				    {
+				        {
+				            widget = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png",
+				            menu = mymainmenu})
+				        },
+				        strategy = "exact",
+				        widget = wibox.container.constraint,
+				    },
+				    align = "center",
+				    widget = wibox.container.place,
+				},
+				notifications.create_button(),
+				spacing = dpi(0),
+				layout = wibox.layout.fixed.horizontal
+			},
+			margins = dpi(4),
+			left = dpi(6),
+			widget = wibox.container.margin
+		},
+		shape = function(cr, width, height)
+	            	gears.shape.rounded_rect(cr, width, height, dpi(6))
+		        end,
+		shape_border_width = 1,
+		shape_border_color = beautiful.border_focus .. "88",
+		bg = theme.tglauncher.bg,
+		widget = wibox.container.background
+	},
+	top = dpi(6),
+	bottom = dpi(6),
+	left = dpi(0),
+	right = dpi(4),
+	widget = wibox.container.margin
 }
 
 -- Menubar configuration
@@ -596,7 +608,7 @@ awful.screen.connect_for_each_screen(function(s)
             make_spacer(dpi(8)),
             s.mytaglist,
             make_spacer(10),
-            make_divider(1, dpi(8)),
+            create_divider(1, dpi(8)),
             make_spacer(dpi(10)),
             -- Tasklist
             {
@@ -622,11 +634,11 @@ awful.screen.connect_for_each_screen(function(s)
                 widget = wibox.container.margin
             },
             make_spacer(dpi(12)),
-            make_divider(1, dpi(8)),
+            create_divider(1, dpi(8)),
             make_spacer(dpi(12)),
             s.mytextclock,  -- Use the screen-specific textclock
             make_spacer(dpi(12)),
-            make_divider(1, dpi(4)),
+            create_divider(1, dpi(4)),
         },
     })
     globalWibox = s.mywibox

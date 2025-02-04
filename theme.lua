@@ -20,7 +20,9 @@ black       =   "#161616"
 pitch_black =   "#131313"
 white       =   "#ffffff"
 selected    =   "#83B3F9"
-selected_dark   =   "#424D64"
+selected_dark =   "#424D64"
+selected_extradark =  "#282F3A"
+
 theme.light_gray = light_gray
 theme.gray = gray
 theme.dark_gray = dark_gray
@@ -138,6 +140,28 @@ theme.calendar.date_border_hover = theme.white
 theme.calendar.date_border_current = theme.white
 theme.calendar.button_border = theme.light_gray .. "66"
 theme.calendar.button_border_focus = theme.white .. "88"
+
+-- Notifications
+theme.notifications = {}
+theme.notifications.bg = theme.pitch_black .. "dd"
+theme.notifications.notif_bg = theme.pitch_black .. "00"
+theme.notifications.notif_bg_hover = theme.dark_gray .. "dd"
+theme.notifications.preview = theme.pitch_black .. "00"
+theme.notifications.button_bg = theme.dark_gray
+theme.notifications.button_bg_focus = selected_extradark
+theme.notifications.main_button_bg = theme.black .. "00"
+theme.notifications.main_button_bg_focus = theme.gray .. "aa"
+theme.notifications.button_fg = theme.white .. "aa"
+theme.notifications.button_fg_focus = theme.white .. "ff"
+
+theme.notifications.notif_border = theme.light_gray .. "33"
+theme.notifications.notif_border_hover = theme.white .. "55"
+theme.notifications.button_border = theme.light_gray .. "66"
+theme.notifications.button_border_focus = theme.white .. "88"
+
+-- Taglist Launcher
+theme.tglauncher = {}
+theme.tglauncher.bg = theme.black .. "66"
 
 -- Clock
 theme.clock = {}
