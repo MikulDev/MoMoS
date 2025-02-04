@@ -19,7 +19,7 @@ shutdown_data = {
         {
             name = "Shut Down",
             icon = icon_dir .. "shutdown.png",
-            command = "shutdown --now"
+            command = "shutdown now"
         },
         {
             name = "Restart",
