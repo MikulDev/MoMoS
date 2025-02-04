@@ -241,107 +241,82 @@ end
 
 -- Create a pinned app icon
 function create_pinned_icon(app, index)
-    local icon_widget
-    if app.icon then
-        icon_widget = wibox.widget {
-            {
-                image = app.icon,
-                resize = true,
-                forced_width = dpi(32),
-                forced_height = dpi(32),
-                widget = wibox.widget.imagebox,
-            },
-            margins = dpi(2),
-            widget = wibox.container.margin
-        }
-    else
-        icon_widget = wibox.widget {
-            {
-                text = "⬡",
-                font = beautiful.font .. " 20",
-                forced_width = dpi(32),
-                forced_height = dpi(32),
-                align = 'center',
-                valign = 'center',
-                widget = wibox.widget.textbox
-            },
-            margins = dpi(2),
-            widget = wibox.container.margin
-        }
+    local icon_container = create_image_button({
+        image_path = app.icon,
+        fallback_text = "⬡",
+        image_size = dpi(32),
+        padding = dpi(6),
+        bg_color = theme.appmenu.button_bg,
+        hover_bg = theme.appmenu.button_bg_focus,
+        border_color = theme.appmenu.button_border .. "33",
+        hover_border = theme.appmenu.button_border_focus,
+        shape_radius = dpi(8),
+        on_click = function()
+            awful.spawn(app.exec)
+            appmenu_hide()
+            return true
+        end,
+        on_ctrl_click = function()
+            run_with_sudo(app.exec)
+            appmenu_hide()
+            return true
+        end,
+        on_right_click = function()
+            table.remove(appmenu_data.pinned_apps, index)
+            save_pinned_apps()
+            refresh_menu_widget()
+            return true
+        end
+    })
+
+    -- Add focus update function
+    function icon_container:update_focus()
+        if appmenu_data.current_focus.type == "pinned" and appmenu_data.current_focus.index == index then
+            self:emit_signal("button::focus")
+        else
+            self:emit_signal("button::unfocus")
+        end
     end
 
-    local icon_container = create_image_button({
-	    image_path = app.icon,
-	    fallback_text = "⬡",
-	    image_size = dpi(32),
-	    padding = dpi(6),
-	    bg_color = theme.appmenu.button_bg,
-	    border_color = theme.appmenu.button_border .. "33",
-	    shape_radius = dpi(8),
-	    on_click = function()
-	        awful.spawn(app.exec)
-	        appmenu_hide()
-	        return true
-	    end,
-	    on_ctrl_click = function()
-	        run_with_sudo(app.exec)
-	        appmenu_hide()
-	        return true
-	    end,
-	    on_right_click = function()
-	        table.remove(appmenu_data.pinned_apps, index)
-	        save_pinned_apps()
-	        refresh_menu_widget()
-	        return true
-	    end
-	})
+    -- Connect to focus changes
+    appmenu_data.wibox:connect_signal("property::current_focus", function()
+        icon_container:update_focus()
+    end)
 
-    -- Update background based on focus state
-    local function update_focus()
-	    if appmenu_data.current_focus.type == "pinned" and appmenu_data.current_focus.index == index then
-	        icon_container:update_colors(theme.appmenu.button_bg_focus, theme.appmenu.button_border_focus .. "33")
-	    else
-	        icon_container:update_colors(theme.appmenu.button_bg, theme.appmenu.button_border .. "33")
-	    end
-	end
-
-    update_focus() -- Initial state
-
-    -- Subscribe to focus changes
-    appmenu_data.wibox:connect_signal("property::current_focus", update_focus)
-
-    -- Mouse handlers
+    -- Mouse handlers with proper signals
     icon_container:connect_signal("mouse::enter", function()
-	    appmenu_data.current_focus = {
-	        type = "pinned",
-	        index = index,
-	        pin_focused = false
-	    }
-	    appmenu_data.wibox:emit_signal("property::current_focus")
-	end)
+        appmenu_data.current_focus = {
+            type = "pinned",
+            index = index,
+            pin_focused = false
+        }
+        appmenu_data.wibox:emit_signal("property::current_focus")
+    end)
 
-	icon_container:connect_signal("mouse::leave", function()
-	    appmenu_data.current_focus = {
-	        type = "pinned",
-	        index = nil,
-	        pin_focused = false
-	    }
-	    appmenu_data.wibox:emit_signal("property::current_focus")
-	end)
+    icon_container:connect_signal("mouse::leave", function()
+        appmenu_data.current_focus = {
+            type = "pinned",
+            index = nil,
+            pin_focused = false
+        }
+        appmenu_data.wibox:emit_signal("property::current_focus")
+    end)
+
+    -- Initial focus state
+    icon_container:update_focus()
 
     return icon_container
 end
 
 -- Create a single application entry widget
 function create_entry(app, index)
-    -- Create a widget table to hold all components and state
     local widget = {
         is_pinned = false,
         is_focused = false,
         is_pin_focused = false
     }
     
-    -- Check if app is pinned
+    -- Check pinned status
     for _, pinned_app in ipairs(appmenu_data.pinned_apps) do
         if pinned_app.name == app.name then
             widget.is_pinned = true
@@ -349,51 +324,34 @@ function create_entry(app, index)
         end
     end
 
-    -- Create app icon
-    local icon_widget
-    if app.icon then
-        icon_widget = wibox.widget {
-            {
-                image = app.icon,
-                resize = true,
-                forced_width = dpi(24),
-                forced_height = dpi(24),
-                widget = wibox.widget.imagebox
-            },
-            margins = dpi(6),
-            widget = wibox.container.margin
-        }
-    else
-        icon_widget = wibox.widget {
-            {
-                text = "⬡",
-                font = beautiful.font or "Sans 11" .. " 16",
-                forced_width = dpi(24),
-                forced_height = dpi(24),
-                align = 'center',
-                valign = 'center',
-                widget = wibox.widget.textbox
-            },
-            margins = dpi(2),
-            widget = wibox.container.margin
-        }
-    end
+    -- Create icon using create_image_button
+    local icon_widget = create_image_button({
+        image_path = app.icon,
+        fallback_text = "⬡",
+        image_size = dpi(24),
+        padding = dpi(6),
+        bg_color = "transparent",
+        border_color = "transparent",
+        hover_bg = "transparent"
+    })
 
-    -- Create pin button
+    -- Create pin button using create_image_button
     widget.pin_button = create_image_button({
-	    image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
-	    image_size = dpi(24),
-	    padding = dpi(6),
-	    opacity = 0.8,
-	    bg_color = theme.appmenu.pin_button_bg,
-	    border_color = theme.appmenu.button_border .. "55",
-	    button_size = dpi(32),
-	    on_click = function()
-	        toggle_pin(app)
-	        return true
-	    end
-	})
-	widget.pin_button.visible = false  -- Initially hidden until focus
+        image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
+        image_size = dpi(24),
+        padding = dpi(6),
+        opacity = 0.8,
+        bg_color = theme.appmenu.pin_button_bg,
+        hover_bg = theme.appmenu.pin_button_bg_focus,
+        border_color = theme.appmenu.button_border .. "55",
+        hover_border = theme.appmenu.button_border_focus,
+        button_size = dpi(32),
+        on_click = function()
+            toggle_pin(app)
+            return true
+        end
+    })
+    widget.pin_button.visible = false
 
     -- Create main content
     local main_content = wibox.widget {
@@ -442,38 +400,37 @@ function create_entry(app, index)
         widget = wibox.container.background,
     }
 
-    -- Function to update widget state
-	function widget:deselect()
-		self.pin_button.visible = false
-        self.background.bg = theme.appmenu.button_bg
-        self.background.fg = theme.appmenu.fg
-        self.background.shape_border_color = theme.appmenu.button_border .. "33"
-        self.pin_button.bg = theme.appmenu.pin_button_bg
-	end
-    function widget:update_state()
-	    if appmenu_data.current_focus.type == "apps" and appmenu_data.current_focus.index == index then
-	        self.pin_button.visible = true
-	        
-	        if appmenu_data.current_focus.pin_focused then
-	            self.background.bg = theme.appmenu.button_bg
-	            self.background.fg = theme.appmenu.fg
-	            self.pin_button:update_colors(theme.appmenu.button_bg_focus)
-	        else
-	            self.background.bg = theme.appmenu.button_bg_focus
-	            self.background.fg = beautiful.fg_focus
-	            self.pin_button:update_colors(theme.appmenu.pin_button_bg)
-	        end
-	        self.background.shape_border_color = theme.appmenu.button_border_focus .. "33"
-	    else
-	        widget:deselect()
-	    end
-	end
+    -- Update focus state function
+    function widget:update_focus()
+        if appmenu_data.current_focus.type == "apps" and appmenu_data.current_focus.index == index then
+            self.pin_button.visible = true
+            
+            if appmenu_data.current_focus.pin_focused then
+                self.background.bg = theme.appmenu.button_bg
+                self.background.fg = theme.appmenu.fg
+                self.background.shape_border_color = theme.appmenu.button_border_focus
+                self.pin_button:emit_signal("button::focus")
+            else
+                self.background.bg = theme.appmenu.button_bg_focus
+                self.background.fg = beautiful.fg_focus
+                self.background.shape_border_color = theme.appmenu.button_border_focus
+                self.pin_button:emit_signal("button::unfocus")
+            end
+        else
+            self.pin_button.visible = false
+            self.background.bg = theme.appmenu.button_bg
+            self.background.fg = theme.appmenu.fg
+            self.background.shape_border_color = theme.appmenu.button_border .. "33"
+            self.pin_button:emit_signal("button::unfocus")
+        end
+    end
 
-    -- Connect signals
+    -- Connect to focus changes
     appmenu_data.wibox:connect_signal("property::current_focus", function()
-        widget:update_state()
+        widget:update_focus()
     end)
 
+    -- Mouse handlers
     widget.background:connect_signal("mouse::enter", function()
         appmenu_data.current_focus = {
             type = "apps",
@@ -484,65 +441,47 @@ function create_entry(app, index)
     end)
 
     widget.background:connect_signal("mouse::leave", function()
-		widget:deselect()
+        if not widget.pin_button.visible then
+            appmenu_data.current_focus = {
+                type = "apps",
+                index = nil,
+                pin_focused = false
+            }
+            appmenu_data.wibox:emit_signal("property::current_focus")
+        end
     end)
 
-    widget.pin_button:connect_signal("mouse::enter", function()
-        appmenu_data.current_focus = {
-            type = "apps",
-            index = index,
-            pin_focused = true
-        }
-        appmenu_data.wibox:emit_signal("property::current_focus")
-    end)
+    -- Add hover cursor to both the background and pin button
+    add_hover_cursor(widget.background)
+    add_hover_cursor(widget.pin_button)
 
-    widget.pin_button:connect_signal("mouse::leave", function()
-        appmenu_data.current_focus = {
-            type = "apps",
-            index = index,
-            pin_focused = false
-        }
-        widget:update_state()
-    end)
-
-    -- Add click handlers
+    -- Add click handlers using proper signals
     widget.background:buttons(gears.table.join(
-	    -- Normal click: Launch app
-	    awful.button({}, 1, function()
-	        if not appmenu_data.current_focus.pin_focused then
-	            awful.spawn(app.exec)
-	            appmenu_hide()
-	        end
-	        return true
-	    end),
-	    -- CTRL+click: Launch with sudo
-	    awful.button({ "Control" }, 1, function()
-	        if not appmenu_data.current_focus.pin_focused then
-	            run_with_sudo(app.exec)
-	            appmenu_hide()
-	        end
-	        return true
-	    end),
-	    -- Right click: Nothing (could be used for context menu in future)
-	    awful.button({}, 3, function()
-	        return true
-	    end)
-	))
+        awful.button({}, 1, function()
+            if not appmenu_data.current_focus.pin_focused then
+                awful.spawn(app.exec)
+                appmenu_hide()
+            end
+            return true
+        end),
+        awful.button({ "Control" }, 1, function()
+            if not appmenu_data.current_focus.pin_focused then
+                run_with_sudo(app.exec)
+                appmenu_hide()
+            end
+            return true
+        end)
+    ))
 
-    -- Create final container
-    local container = wibox.widget {
+    -- Initial focus state
+    widget:update_focus()
+
+    return wibox.widget {
         widget.background,
         left = dpi(8),
         right = dpi(8),
         widget = wibox.container.margin
     }
-
-	add_hover_cursor(container)
-
-    -- Initial state
-    widget:update_state()
-
-    return container
 end
 
 function create_pinned_row()
