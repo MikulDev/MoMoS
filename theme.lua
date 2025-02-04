@@ -111,7 +111,7 @@ theme.appmenu.pin_button_bg = theme.dark_gray .. "cc"
 theme.appmenu.fg = theme.light_gray .. "d0"
 theme.appmenu.border = theme.gray
 theme.appmenu.button_border = theme.light_gray
-theme.appmenu.button_border_focus = theme.white
+theme.appmenu.button_border_focus = theme.white .. "55"
 
 -- Shutdown
 theme.shutdown = {}
@@ -128,7 +128,7 @@ theme.calendar.date_bg = theme.dark_gray .. "66"
 theme.calendar.date_bg_current = theme.selected .. "40"
 theme.calendar.date_bg_hover = theme.selected .. "25"
 theme.calendar.button_bg = theme.dark_gray .. "dd"
-theme.calendar.button_bg_focus = theme.selected_dark .. "77"
+theme.calendar.button_bg_focus = theme.gray .. "aa"
 theme.calendar.month_fg = theme.white
 theme.calendar.day_fg = theme.white .. "aa"
 theme.calendar.date_fg = theme.light_gray .. "ff"
@@ -161,7 +161,7 @@ theme.notifications.button_border_focus = theme.white .. "88"
 
 -- Taglist Launcher
 theme.tglauncher = {}
-theme.tglauncher.bg = theme.black .. "66"
+theme.tglauncher.bg = theme.black .. "88"
 
 -- Clock
 theme.clock = {}
