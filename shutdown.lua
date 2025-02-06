@@ -143,14 +143,12 @@ function create_overlay()
     -- Update overlay size and position when screen geometry changes
     function update_overlay()
         local screen_geom = mouse.screen.geometry
-        local wibar = mouse.screen.mywibox
-        local wibar_height = wibar and wibar.height or 0
         
         overlay.screen = mouse.screen
         overlay.x = screen_geom.x
-        overlay.y = screen_geom.y + wibar_height
+        overlay.y = screen_geom.y
         overlay.width = screen_geom.width
-        overlay.height = screen_geom.height - wibar_height
+        overlay.height = screen_geom.height
     end
     
     -- Connect to property changes
