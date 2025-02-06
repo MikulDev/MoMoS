@@ -575,6 +575,7 @@ function notifications.create_button()
     button:buttons(gears.table.join(
         -- Left click to toggle
         awful.button({}, 1, function()
+            if #notifications.history == 0 then return end
             -- Reset scroll position when opening
             if not notifications.popup.visible then
                 scroll_state.start_idx = 1
