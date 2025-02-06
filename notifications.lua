@@ -17,13 +17,25 @@ local notifications = {}
 notifications.history = {}
 notifications.popup = nil
 notifications._label = nil
-notifications._cached_button = nil  -- Add this to cache the button
+notifications._cached_button = nil
 
 -- Scrolling state
 local scroll_state = {
     start_idx = 1,
-    items_per_page = 5,  -- Will be adjusted based on max_height
+    items_per_page = 5,
 }
+
+do
+    local in_error = false
+    awesome.connect_signal("debug::error", function (err)
+        -- Make sure we don't go into an endless error loop
+        if in_error then return end
+        in_error = true
+
+        debug_log("[Error]: " .. tostring(err))
+        in_error = false
+    end)
+end
 
 -- Format the message to a single line with ellipsis
 local function format_message(text, length)
@@ -42,6 +54,38 @@ local function format_timestamp(timestamp)
     return os.date("%I:%M %p", timestamp):gsub("^0", "")  -- Remove leading zero from hour
 end
 
+local function add_notification(n)
+    -- Create notification entry with the full notification object
+    local notification = {
+        title = n.title or "",
+        text = n.message or n.text or "",
+        icon = n.app_icon or n.icon or "",
+        timestamp = os.time(),
+        notification = n,
+        actions = n.actions
+    }
+    
+    -- Add to start of table
+    table.insert(notifications.history, 1, notification)
+
+    -- Update the list widget if it exists and is visible
+    if notifications.popup and notifications.popup.visible then
+        notifications.popup.widget = create_notification_list()
+    end
+    update_count()
+end
+
+local function remove_notification(n)
+	for i, notif in ipairs(notifications.history) do
+        if notif == n or notif.notification == n then
+			debug_log("successfully removed notification")
+            table.remove(notifications.history, i)
+            update_count()
+            break
+        end
+    end
+end
+
 -- Create a notification entry widget
 local function create_notification_widget(n)
     -- Create close button
@@ -58,13 +102,7 @@ local function create_notification_widget(n)
         hover_border = theme.notifications.button_border_focus,
         shape_radius = dpi(0),
         on_click = function()
-            for i, notif in ipairs(notifications.history) do
-                if notif == n then
-                    table.remove(notifications.history, i)
-                    update_count()
-                    break
-                end
-            end
+            remove_notification(n)
             if notifications.popup and notifications.popup.visible then
                 notifications.popup.widget = create_notification_list()
             end
@@ -84,6 +122,14 @@ local function create_notification_widget(n)
         widget = wibox.container.place
     }
     close_container.visible = false
+	-- Track hoving the notification close button
+	close_hover = false
+	close_container:connect_signal("mouse::enter", function()
+		close_hover = true
+	end)
+	close_container:connect_signal("mouse::leave", function()
+		close_hover = false
+	end)
 
     -- Create the content
     local content = wibox.widget {
@@ -168,18 +214,39 @@ local function create_notification_widget(n)
         layout = wibox.layout.stack
     }
 
+	w:buttons(gears.table.join(
+        -- Left click: Execute action and remove from history
+        awful.button({}, 1, function()
+            if n.notification then
+                -- Try to execute action in multiple ways since the notification structure might vary
+                n.notification:destroy(2)
+                
+                -- Remove from history
+                remove_notification(n)
+                
+                -- Hide the popup
+                notifications.popup.visible = false
+                
+                -- Update the popup if still visible
+                if notifications.popup and notifications.popup.visible then
+                    notifications.popup.widget = create_notification_list()
+                end
+            end
+        end)
+    ))
+ 
     -- Show/hide close button and change background on hover
     w:connect_signal("mouse::enter", function()
         close_container.visible = true
 		local background = bg_container:get_children_by_id("notif_background")[1]
         background.bg = theme.notifications.notif_bg_hover
-		background.shape_border_color = theme.notifications.notif_border_hover
+        background.shape_border_color = theme.notifications.notif_border_hover
     end)
     w:connect_signal("mouse::leave", function()
         close_container.visible = false
 		local background = bg_container:get_children_by_id("notif_background")[1]
         background.bg = theme.notifications.notif_bg
-		background.shape_border_color = theme.notifications.notif_border
+        background.shape_border_color = theme.notifications.notif_border
     end)
 
     return w
@@ -361,6 +428,7 @@ function create_notification_list()
             if notifications.popup then
                 notifications.popup.widget = create_notification_list()
             end
+			update_count()
         end
     })
 
@@ -469,6 +537,10 @@ function notifications.create_button()
         end
     }
 
+	notifications.popup:connect_signal("mouse::leave", function()
+        notifications.popup.visible = false
+    end)
+
     -- Add hover effects
     button:connect_signal("mouse::enter", function()
         button.bg = theme.notifications.main_button_bg_focus
@@ -522,16 +594,8 @@ function notifications.create_button()
         end)
     end
 
-    -- Connect signals
-    naughty.connect_signal("added", update_count)
-    naughty.connect_signal("destroyed", update_count)
-
     -- Initial update
     update_count()
-
-	gears.timer.start_new(2, function()
-        return false
-    end)
 
     local layout = wibox.widget {
         button,
@@ -542,34 +606,41 @@ function notifications.create_button()
     return layout
 end
 
-function notifications.update_count()
-    if notifications._button and notifications._button.label then
-        notifications._button.label.text = tostring(#notifications.history)
-    end
-end
+-- Update count on notification dismissed
+naughty.connect_signal("destroyed", update_count)
 
--- Function to add a notification
-function add_notification(n)
-    -- Create notification entry
-    local notification = {
-        title = n.title or "",
-        text = n.message or n.text or "",
-        icon = n.app_icon or n.icon or "",
-        timestamp = os.time()
-    }
-    
-    -- Add to start of table
-    table.insert(notifications.history, 1, notification)
-
-    -- Update the list widget if it exists and is visible
-    if notifications.popup and notifications.popup.visible then
-        notifications.popup.widget = create_notification_list()
-    end
-end
-
--- Connect to notification signal
+-- Add notification to map upon display
 naughty.connect_signal("added", function(n)
-    add_notification(n)
+	add_notification(n)
+    -- Set up timeout for display duration
+    if config.notifications.timeout then
+        gears.timer.start_new(config.notifications.timeout, function()
+            -- Only hide if not already ignored
+            if not n.ignore and n.box and n.box.visible then
+                n.box.visible = false
+            end
+            return false
+        end)
+    end
+end)
+
+-- Change mouse controls for notificaions
+naughty.connect_signal("request::display", function(n)
+	local box = naughty.layout.box {notification = n}
+	if box then
+        box.buttons = gears.table.join(
+        	-- Left-click triggers notification action
+            awful.button({}, 1, function()
+                -- action 2 = dismissed by user (triggers)
+                n:destroy(2)
+            end),
+            -- Right-click dismisses notification
+            awful.button({}, 3, function()
+                -- action 1 = expired (no trigger)
+                n:destroy(1)
+                remove_notification(n)
+            end))
+    end
 end)
 
 return notifications
