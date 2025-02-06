@@ -100,6 +100,7 @@ theme.notification_border_color = gray
 theme.notification_fg = white .. "b0"
 theme.notification_margin = dpi(16)
 naughty.config.defaults.margin = theme.notification_margin
+theme.notification_font = font_with_size(dpi(14))
 
 -- App Menu
 theme.appmenu = {}

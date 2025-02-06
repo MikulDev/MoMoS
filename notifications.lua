@@ -78,12 +78,28 @@ end
 local function remove_notification(n)
 	for i, notif in ipairs(notifications.history) do
         if notif == n or notif.notification == n then
-			debug_log("successfully removed notification")
             table.remove(notifications.history, i)
             update_count()
             break
         end
     end
+end
+
+local function jump_to_client(n)
+	local current_pos = mouse.coords()
+	local jumped = false
+	for _, c in ipairs(n.clients) do
+		c.urgent = true
+		if jumped then
+			c:activate {
+				context = "client.jumpto"
+			}
+		else
+			c:jump_to()
+			jumped = true
+		end
+	end
+	mouse.coords{x = current_pos.x, y = current_pos.y}
 end
 
 -- Create a notification entry widget
@@ -146,7 +162,7 @@ local function create_notification_widget(n)
         },
         {
             {
-                markup = "<b>" .. format_message(n.title, 30) .. "</b>",
+				markup = "<b>" .. format_message(n.title, 30) .. "</b>",
                 font = font_with_size(dpi(12)),
                 align = "left",
                 forced_height = dpi(20),
@@ -217,7 +233,8 @@ local function create_notification_widget(n)
 	w:buttons(gears.table.join(
         -- Left click: Execute action and remove from history
         awful.button({}, 1, function()
-            if n.notification then
+            if n.notification and not close_hover then
+                jump_to_client(n.notification)
                 -- Try to execute action in multiple ways since the notification structure might vary
                 n.notification:destroy(2)
                 
@@ -624,15 +641,53 @@ naughty.connect_signal("added", function(n)
     end
 end)
 
+naughty.config.notify_callback = function(args)
+    args.text_title = "<b>" .. "poop" .. "</b>"
+    return args
+end
+
 -- Change mouse controls for notificaions
 naughty.connect_signal("request::display", function(n)
-	local box = naughty.layout.box {notification = n}
-	if box then
+	n.title = string.format("<span><b>%s</b></span>", n.title)
+	local box = naughty.layout.box {
+        notification = n,
+        widget_template = {
+            {
+                {
+                    {
+                        {
+                            naughty.widget.icon,
+                            {
+                                naughty.widget.title,
+                                naughty.widget.message,
+                                spacing = dpi(5),
+                                layout  = wibox.layout.fixed.vertical,
+                            },
+                            fill_space = true,
+                            spacing    = dpi(18),
+                            layout     = wibox.layout.fixed.horizontal,
+                        },
+                        spacing = dpi(10),
+                        layout  = wibox.layout.fixed.vertical,
+                    },
+                    margins = beautiful.notification_margin,
+                    widget  = wibox.container.margin,
+                },
+                id     = "background_role",
+                widget = naughty.container.background,
+            },
+            strategy = "max",
+            width    = beautiful.notification_max_width,
+            widget   = wibox.container.constraint,
+        }
+    }
+    if box then
         box.buttons = gears.table.join(
-        	-- Left-click triggers notification action
+            -- Left-click triggers notification action
             awful.button({}, 1, function()
                 -- action 2 = dismissed by user (triggers)
                 n:destroy(2)
+                jump_to_client(n)
             end),
             -- Right-click dismisses notification
             awful.button({}, 3, function()
