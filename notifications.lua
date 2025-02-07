@@ -54,9 +54,8 @@ local function format_timestamp(timestamp)
     return os.date("%I:%M %p", timestamp):gsub("^0", "")  -- Remove leading zero from hour
 end
 
-local function add_notification(n)
-    -- Create notification entry with the full notification object
-    local notification = {
+local function wrap_notification(n)
+	return {
         title = n.title or "",
         text = n.message or n.text or "",
         icon = n.app_icon or n.icon or "",
@@ -64,6 +63,11 @@ local function add_notification(n)
         notification = n,
         actions = n.actions
     }
+end
+
+local function add_notification(n)
+    -- Create notification entry with the full notification object
+    local notification = wrap_notification(n)
     
     -- Add to start of table
     table.insert(notifications.history, 1, notification)
@@ -112,17 +116,43 @@ local function create_notification_widget(n)
         button_size = dpi(34),
         opacity = 0.5,
         opacity_hover = 1,
-        bg_color = theme.notifications.button_bg,
+        bg_color = theme.notifications.close_button_bg,
         border_color = theme.notifications.button_border,
-        hover_bg = theme.notifications.button_bg_focus,
+        hover_bg = theme.notifications.close_button_bg_focus,
         hover_border = theme.notifications.button_border_focus,
         shape_radius = dpi(0),
         on_click = function()
-            remove_notification(n)
-            if notifications.popup and notifications.popup.visible then
-                notifications.popup.widget = create_notification_list()
-            end
-        end
+	        local index = nil
+	        for i, notif in ipairs(notifications.history) do
+	            if notif == n then 
+	                index = i + 1
+	                break
+	            end
+	        end
+	        
+	        remove_notification(n)
+			debug_log("closed notification")	
+	        
+	        if notifications.popup and notifications.popup.visible then
+	            notifications.popup.widget = create_notification_list()
+	            
+				-- Wait for UI to refresh
+	            gears.timer.start_new(0.01, function()
+                    if mouse.current_widget then
+						-- Hover next widget
+						mouse.current_widget:emit_signal("mouse::enter")
+						-- Wait for close button to be visible
+						gears.timer.start_new(0.01, function()
+							-- Hover close button
+							local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
+							if cbutton then cbutton:emit_signal("mouse::enter") end
+						end)
+                    end
+                    return false
+                end)
+	        end
+	    end,
+		id = "close_button"
     })
 
     -- Container for close button that's initially invisible
@@ -140,88 +170,88 @@ local function create_notification_widget(n)
     close_container.visible = false
 	-- Track hoving the notification close button
 	close_hover = false
-	close_container:connect_signal("mouse::enter", function()
+	close_button:connect_signal("mouse::enter", function()
 		close_hover = true
 	end)
-	close_container:connect_signal("mouse::leave", function()
+	close_button:connect_signal("mouse::leave", function()
 		close_hover = false
 	end)
 
     -- Create the content
     local content = wibox.widget {
-        {
-            {
-                image = n.icon,
-                resize = true,
-                forced_width = config.notifications.icon_size,
-                forced_height = config.notifications.icon_size,
-                widget = wibox.widget.imagebox,
-            },
-            valign = "center",
-            widget = wibox.container.place
-        },
-        {
-            {
-				markup = "<b>" .. format_message(n.title, 30) .. "</b>",
-                font = font_with_size(dpi(12)),
-                align = "left",
-                forced_height = dpi(20),
-                widget = wibox.widget.textbox,
-                id = "notif_title"
-            },
-            {
-                {
-                    {
-                        text = format_message(n.text, dpi(60)),
-                        font = font_with_size(dpi(12)),
-                        align = "left",
-                        forced_height = dpi(22),
-                        widget = wibox.widget.textbox,
-                        id = "notif_message"
-                    },
-                    forced_width = dpi(300), -- Fixed width for message
-                    widget = wibox.container.constraint
-                },
-                {
-                    text = format_timestamp(n.timestamp),
-                    font = font_with_size(dpi(10)),
-                    align = "right",
-                    forced_width = dpi(50), -- Fixed width for timestamp
-                    widget = wibox.widget.textbox
-                },
-                layout = wibox.layout.fixed.horizontal,
-                spacing = dpi(10)
-            },
-            spacing = dpi(-2),
-            layout = wibox.layout.fixed.vertical
-        },
-        spacing = dpi(10),
-        layout = wibox.layout.fixed.horizontal
-    }
+	    {
+	        {
+	            {
+	                image = n.icon,
+	                resize = true,
+	                forced_width = config.notifications.icon_size,
+	                forced_height = config.notifications.icon_size,
+	                widget = wibox.widget.imagebox,
+	            },
+	            valign = "center",
+	            widget = wibox.container.place
+	        },
+	        {
+	            {
+	                markup = "<b>" .. format_message(n.title, dpi(50)) .. "</b>",
+	                font = font_with_size(dpi(12)),
+	                align = "left",
+	                forced_height = dpi(20),
+	                widget = wibox.widget.textbox,
+	                id = "notif_title"
+	            },
+	            {
+	                {
+	                    text = format_message(n.text, dpi(42)),
+	                    font = font_with_size(dpi(12)),
+	                    align = "left",
+	                    forced_height = dpi(22),
+	                    widget = wibox.widget.textbox,
+	                    id = "notif_message"
+	                },
+	                nil,
+	                {
+	                    text = format_timestamp(n.timestamp),
+	                    font = font_with_size(dpi(10)),
+	                    widget = wibox.widget.textbox
+	                },
+	                forced_width = config.notifications.max_width,
+	                layout = wibox.layout.align.horizontal
+	            },
+	            spacing = dpi(-2),
+	            layout = wibox.layout.fixed.vertical
+	        },
+	        spacing = dpi(10),
+	        layout = wibox.layout.fixed.horizontal
+	    },
+	    forced_width = config.notifications.max_width - dpi(20), -- Account for margins
+	    widget = wibox.container.constraint
+	}
 
 
     local bg_container = wibox.widget {
-		{
+	    {
 	        {
 	            content,
 	            margins = dpi(8),
 	            widget = wibox.container.margin
 	        },
+	        fg = theme.notifications.button_fg,
 	        bg = theme.notifications.notif_bg,
 	        widget = wibox.container.background,
-			shape = function(cr, width, height)
+	        shape = function(cr, width, height)
 	            gears.shape.rounded_rect(cr, width, height, dpi(6))
 	        end,
-			shape_border_width = 1,
-			shape_border_color = theme.notifications.notif_border,
-			id = "notif_background"
-		},
-		top = dpi(10),
-		bottom = 0,
-		left = dpi(10),
-		right = dpi(10),
-		widget = wibox.container.margin
-    }
+	        shape_border_width = 1,
+	        shape_border_color = theme.notifications.notif_border,
+	        id = "notif_background"
+	    },
+	    top = dpi(10),
+	    bottom = 0,
+	    left = dpi(10),
+	    right = dpi(10),
+	    widget = wibox.container.margin
+	}
 
     -- Main container with overlay
     local w = wibox.widget {
@@ -233,10 +263,9 @@ local function create_notification_widget(n)
 	w:buttons(gears.table.join(
         -- Left click: Execute action and remove from history
         awful.button({}, 1, function()
-            if n.notification and not close_hover then
+            if n.notification and close_hover == false then
                 jump_to_client(n.notification)
-                -- Try to execute action in multiple ways since the notification structure might vary
-                n.notification:destroy(2)
+                n.notification:destroy()
                 
                 -- Remove from history
                 remove_notification(n)
@@ -251,6 +280,8 @@ local function create_notification_widget(n)
             end
         end)
     ))
+
+	add_hover_cursor(w)
  
     -- Show/hide close button and change background on hover
     w:connect_signal("mouse::enter", function()
@@ -271,8 +302,11 @@ end
 
 -- Create the notification list widget
 function create_notification_list()
-    local list_layout = wibox.layout.fixed.vertical()
-    list_layout.spacing = dpi(0)
+    local list_layout = wibox.layout.fixed.vertical
+	{
+		spacing = 0
+	}
+	
 
     -- Calculate items per page based on max_height and entry_height
     scroll_state.items_per_page = math.floor(
@@ -309,7 +343,7 @@ function create_notification_list()
     -- Create a constraint container that will handle the width only
     local right_container = wibox.widget {
         right_layout,
-        forced_width = dpi(300),
+        forced_width = config.notifications.max_width,
         visible = false,  -- Start hidden
         widget = wibox.container.constraint
     }
@@ -476,7 +510,7 @@ function create_notification_list()
     -- Add the list widget (with constraint)
     main_layout:add(wibox.widget {
         list_widget,
-        forced_width = config.notifications.max_width,
+        forced_width = config.notifications.max_width + dpi(10),
         widget = wibox.container.constraint
     })
 
@@ -629,27 +663,27 @@ naughty.connect_signal("destroyed", update_count)
 
 -- Add notification to map upon display
 naughty.connect_signal("added", function(n)
-	add_notification(n)
-    -- Set up timeout for display duration
-    if config.notifications.timeout then
-        gears.timer.start_new(config.notifications.timeout, function()
-            -- Only hide if not already ignored
-            if not n.ignore and n.box and n.box.visible then
-                n.box.visible = false
-            end
-            return false
-        end)
-    end
+    add_notification(n)
 end)
-
-naughty.config.notify_callback = function(args)
-    args.text_title = "<b>" .. "poop" .. "</b>"
-    return args
-end
 
 -- Change mouse controls for notificaions
 naughty.connect_signal("request::display", function(n)
-	n.title = string.format("<span><b>%s</b></span>", n.title)
+	local function format_title(title)
+		return string.format("<span font = \"%s\"><b>%s</b></span>", beautiful.font, title)
+	end
+
+	-- Store original title setter
+    local orig_title_setter = n.set_title or n.title
+    
+    -- Override title setter
+    n.set_title = function(self, new_title)
+        local formatted_title = format_title(new_title)
+        orig_title_setter(self, formatted_title)
+    end
+    
+    -- Format initial title
+    n.title = format_title(n.title)
+
 	local box = naughty.layout.box {
         notification = n,
         widget_template = {
@@ -682,6 +716,16 @@ naughty.connect_signal("request::display", function(n)
             widget   = wibox.container.constraint,
         }
     }
+
+	if config.notifications.timeout then
+        gears.timer.start_new(config.notifications.timeout, function()
+            if box and not box._private.is_destroyed then
+                box.visible = false
+            end
+            return false
+        end)
+    end
+
     if box then
         box.buttons = gears.table.join(
             -- Left-click triggers notification action
@@ -689,6 +733,7 @@ naughty.connect_signal("request::display", function(n)
                 -- action 2 = dismissed by user (triggers)
                 n:destroy(2)
                 jump_to_client(n)
+                remove_notification(n)
             end),
             -- Right-click dismisses notification
             awful.button({}, 3, function()

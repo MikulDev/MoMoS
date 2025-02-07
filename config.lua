@@ -34,7 +34,7 @@ config.wallpaper_interval = 600
 
 config.notifications = {
     timeout = 10,  -- Time in seconds before hiding notifications
-    max_width = dpi(500),  -- Maximum width of the notification list
+    max_width = dpi(400),  -- Maximum width of the notification list
     max_height = dpi(400), -- Maximum height of the notification list
     icon_size = dpi(32),   -- Size of icons in the notification list entries
     button_size = dpi(16), -- Size of the notification button in wibar

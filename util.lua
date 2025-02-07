@@ -29,6 +29,19 @@ function debug_log(message)
     end
 end
 
+function table_to_string(tbl, indent)
+    indent = indent or 0
+    local string = string.rep("  ", indent) .. "{\n"
+    
+    for k, v in pairs(tbl) do
+        local key = type(k) == "number" and "[" .. k .. "]" or k
+        local value = type(v) == "table" and table_to_string(v, indent + 1) or tostring(v)
+        string = string .. string.rep("  ", indent + 1) .. key .. " = " .. value .. ",\n"
+    end
+    
+    return string .. string.rep("  ", indent) .. "}"
+end
+
 -- Makes a vertical line widget with the specified width and margin
 function create_divider(width, margin)
     return wibox.widget {
@@ -62,6 +75,7 @@ function create_image_button(args)
     local on_click = args.on_click
     local on_right_click = args.on_right_click
     local on_ctrl_click = args.on_ctrl_click
+	local id = args.id or ""
     
     -- Create the image or fallback text widget
     local content_widget
@@ -104,7 +118,8 @@ function create_image_button(args)
         end,
         shape_border_width = 1,
         shape_border_color = border_color,
-        widget = wibox.container.background
+        widget = wibox.container.background,
+        id = args.id
     }
 
     -- Add size constraints if specified

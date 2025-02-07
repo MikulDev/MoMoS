@@ -100,7 +100,6 @@ theme.notification_border_color = gray
 theme.notification_fg = white .. "b0"
 theme.notification_margin = dpi(16)
 naughty.config.defaults.margin = theme.notification_margin
-theme.notification_font = font_with_size(dpi(14))
 
 -- App Menu
 theme.appmenu = {}
@@ -142,23 +141,24 @@ theme.calendar.date_border_current = theme.white
 theme.calendar.button_border = theme.light_gray .. "66"
 theme.calendar.button_border_focus = theme.white .. "88"
 
--- Notifications
+-- Notification Menu
 theme.notifications = {}
 theme.notifications.bg = theme.pitch_black .. "dd"
 theme.notifications.notif_bg = theme.pitch_black .. "00"
 theme.notifications.notif_bg_hover = theme.dark_gray .. "dd"
 theme.notifications.preview = theme.pitch_black .. "00"
-theme.notifications.button_bg = theme.dark_gray
-theme.notifications.button_bg_focus = selected_extradark
+theme.notifications.close_button_bg = theme.dark_gray
+theme.notifications.close_button_bg_focus = theme.gray
+theme.notifications.button_bg = theme.dark_gray .. "aa"
+theme.notifications.button_bg_focus = theme.gray .. "aa"
 theme.notifications.main_button_bg = theme.black .. "00"
 theme.notifications.main_button_bg_focus = theme.gray .. "aa"
 theme.notifications.button_fg = theme.white .. "aa"
 theme.notifications.button_fg_focus = theme.white .. "ff"
-
 theme.notifications.notif_border = theme.light_gray .. "33"
 theme.notifications.notif_border_hover = theme.white .. "55"
-theme.notifications.button_border = theme.light_gray .. "66"
-theme.notifications.button_border_focus = theme.white .. "88"
+theme.notifications.button_border = theme.light_gray .. "44"
+theme.notifications.button_border_focus = theme.white .. "66"
 
 -- Taglist Launcher
 theme.tglauncher = {}
