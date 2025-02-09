@@ -13,7 +13,10 @@ require("awful.autofocus")
 
 local config_dir = gears.filesystem.get_configuration_dir()
 
-local theme = dofile(config_dir .. "theme.lua")
+local util = require("util")
+
+-- Theme
+local theme = load_util("theme")
 
 -- Widget and layout library
 local wibox = require("wibox")
@@ -27,20 +30,16 @@ local menubar = require("menubar")
 local hotkeys_popup = require("awful.hotkeys_popup")
 
 -- Menus/Widgets
-local appmenu = require("appmenu")
-local calendar = require("calendar")
-local switcher = require("switcher")
-local shutdown = require("shutdown")
+local appmenu = load_widget("appmenu")
+local calendar = load_widget("calendar")
+local switcher = load_widget("switcher")
+local shutdown = load_widget("shutdown")
+local notifications = load_widget("notifications")
 appmenu_init()
 shutdown_init()
 
--- Notification storage
-local notifications = require("notifications")
-
 -- Config settings
 local config = require("config")
-
-local util = require("util")
 
 
 -- {{{ Default Applications

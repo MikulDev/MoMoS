@@ -9,7 +9,7 @@ local util = require("util")
 local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
 
-local theme = dofile(config_dir .. "theme.lua")
+local theme = load_util("theme")
 
 local calendar_icons = {
     left_arrow = icon_dir .. "left_arrow.png",

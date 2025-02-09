@@ -5,10 +5,11 @@ local wibox = require("wibox")
 local dpi = require("beautiful.xresources").apply_dpi
 local naughty = require('naughty')
 
+local util = require("util")
+
 local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
-local theme = dofile(config_dir .. "theme.lua")
-local util = require("util")
+local theme = load_util("theme")
 
 shutdown_data = {
     wibox = nil,

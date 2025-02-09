@@ -6,11 +6,12 @@ local wibox = require("wibox")
 local dpi = require("beautiful.xresources").apply_dpi
 local naughty = require("naughty")
 
+local util = require("util")
+
 local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
 
-local theme = dofile(config_dir .. "theme.lua")
-local util = require("util")
+local theme = load_util("theme")
 
 -- {{{ Error handling
 -- Handle runtime errors after startup
@@ -129,7 +130,7 @@ function scan_desktop_files()
         os.getenv("HOME") .. "/.local/share/applications/"
     }
     
-    appmenu_data.desktop_entries = {} -- Clear existing entries
+    appmenu_data.desktop_entries = {}
     
     for _, path in ipairs(paths) do
         local handle = io.popen('find "' .. path .. '" -name "*.desktop"')

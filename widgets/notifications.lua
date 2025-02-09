@@ -8,7 +8,7 @@ local config = require("config")
 local util = require("util")
 
 local config_dir = gears.filesystem.get_configuration_dir()
-local theme = dofile(config_dir .. "theme.lua")
+local theme = load_util("theme")
 
 -- Initialize module
 local notifications = {}
@@ -480,6 +480,7 @@ function create_notification_list()
                 notifications.popup.widget = create_notification_list()
             end
 			update_count()
+			notifications.popup.visible = false	
         end
     })
 

@@ -11,6 +11,14 @@ local theme = dofile(config_dir .. "theme.lua")
 
 local util = {}  -- Create the module table
 
+function load_util(name)
+	return dofile(string.format("%s%s.lua", config_dir, name))
+end
+
+function load_widget(name)
+	return dofile(string.format("%swidgets/%s.lua", config_dir, name))
+end
+
 function debug_log(message)
     -- Get home directory
     local home = os.getenv("HOME")
