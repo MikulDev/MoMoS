@@ -119,7 +119,6 @@ local function create_notification_widget(n)
 	        end
 	        
 	        remove_notification(n)
-			debug_log("closed notification")	
 	        
 	        if notifications.popup and notifications.popup.visible then
 				-- Close menu if that was the last notification
@@ -127,22 +126,22 @@ local function create_notification_widget(n)
 
 	            notifications.popup.widget = create_notification_list()
 	            
-				-- Wait for UI to refresh
-				if close_hover then 				
-		            gears.timer.start_new(0.01, function()
-	                    if mouse.current_widget then
-							-- Hover next widget
-							mouse.current_widget:emit_signal("mouse::enter")
-							-- Wait for close button to be visible
+				-- Wait for UI to refresh		
+	            gears.timer.start_new(0.01, function()
+                    if mouse.current_widget then
+						-- Hover next widget
+						mouse.current_widget:emit_signal("mouse::enter")
+						-- Wait for close button to be visible
+						if close_hover then
 							gears.timer.start_new(0.01, function()
 								-- Hover close button
 								local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
 								if cbutton then cbutton:emit_signal("mouse::enter") end
 							end)
-	                    end
-	                    return false
-	                end)
-				end				
+						end
+                    end
+                    return false
+                end)		
 	        end
 	    end	
 	
