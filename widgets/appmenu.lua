@@ -39,7 +39,7 @@ appmenu_data = {
     max_pinned = 8,   -- Maximum number of pinned apps
     font = theme.font .. " " .. dpi(13),
 	current_focus = {
-        type = "search", -- can be "search", "pinned", "apps", or "pin_button"
+        type = "pinned", -- can be "pinned", "apps", or "pin_button"
         index = nil,     -- index in the current list (for pinned or apps)
         pin_focused = false -- whether pin button is focused for current app
     },
@@ -565,22 +565,6 @@ function create_search_box()
         widget = wibox.container.background
     }
 
-    -- Update focus state
-    local function update_focus()
-        if appmenu_data.current_focus.type == "search" then
-            search_container.bg = theme.appmenu.button_bg_focus
-            search_container.shape_border_color = theme.appmenu.button_border_focus .. "33"
-        else
-            search_container.bg = theme.appmenu.bg
-            search_container.shape_border_color = theme.appmenu.button_border .. "33"
-        end
-    end
-
-    update_focus() -- Initial state
-
-    -- Subscribe to focus changes
-    appmenu_data.wibox:connect_signal("property::current_focus", update_focus)
-
     -- Create a separator widget for the bottom border
     local separator = wibox.widget {
         widget = wibox.widget.separator,
@@ -886,16 +870,14 @@ function appmenu_create()
 	    on_text_change = function(new_text)
 	        appmenu_data.current_filter = new_text
 	        appmenu_data.current_start = 1
-	        update_filtered_list(new_text)
-	        
-	        -- Reset focus to first item in filtered list
-	        appmenu_data.current_focus = {
-	            type = "apps",
-	            index = 1,
-	            pin_focused = false
-	        }
-	        ensure_focused_visible()
-	        refresh_menu_widget()
+			appmenu_data.current_focus = {
+				type = "apps",
+				index = 1,
+				pin_focused = false
+			}
+			update_filtered_list(new_text)
+			ensure_focused_visible()
+			refresh_menu_widget()
 	    end
 	})
 
@@ -943,14 +925,13 @@ function appmenu_init()
                 return
             end
             
-            if key == "Escape" then
-                appmenu_hide()
-                return
-            end
-            
-            -- Handle navigation keys
+            -- Check for textbox input
             if not appmenu_data.search_input:handle_key(mod, key) then
 			    -- Handle navigation keys only if the text input didn't handle the key
+				if key == "Escape" then
+	                appmenu_hide()
+	                return
+	            end
 			    if key == "Up" or key == "Down" or key == "Left" or 
 			       key == "Right" or key == "Return" or key == "Home" or 
 			       key == "End" or key == "Tab" then
@@ -978,12 +959,16 @@ function appmenu_show()
         -- Update to current screen
         appmenu_data.wibox.screen = mouse.screen
 
-		-- Force focus to our menu wibox to release game input capture
         if client.focus then
             client.focus = nil
         end
+
+		if appmenu_data.search_input then
+		    appmenu_data.search_input:set_text("")
+		end
+        update_filtered_list("")
+        refresh_menu_widget()
         
-        -- Rest of your existing show code...
         appmenu_data.current_filter = ""
         appmenu_data.current_start = 1
         appmenu_data.current_focus = {
@@ -991,14 +976,11 @@ function appmenu_show()
             index = 1,
             pin_focused = false
         }
-        if appmenu_data.search_input then
-		    appmenu_data.search_input:set_text("")
-		end
-        update_filtered_list("")
-        refresh_menu_widget()
+
         appmenu_data.wibox:emit_signal("property::current_focus")
         appmenu_data.wibox.visible = true
         awful.placement.centered(appmenu_data.wibox)
+
         if appmenu_data.keygrabber then
             appmenu_data.keygrabber:start()
         end
@@ -1011,11 +993,6 @@ function appmenu_hide()
         if appmenu_data.keygrabber then
             appmenu_data.keygrabber:stop()
         end
-        appmenu_data.current_focus = {
-            type = "search",
-            index = nil,
-            pin_focused = false
-        }
         appmenu_data.wibox:emit_signal("property::current_focus")
         
         -- Focus the client under the mouse cursor

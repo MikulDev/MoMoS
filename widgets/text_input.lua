@@ -10,7 +10,7 @@ local theme = dofile(gears.filesystem.get_configuration_dir() .. "theme.lua")
 
 -- Helper function to find word boundaries
 local function find_word_bounds(text, cursor_pos)
-    local start_pos = cursor_pos
+    local start_pos = cursor_pos - 1
     local end_pos = cursor_pos
     
     -- Find start of word (move backwards)
@@ -78,6 +78,7 @@ local function create_text_input(args)
             local end_pos = math.max(self.selection_start, self.selection_end)
             
             -- Build markup with selection highlighting
+            if start_pos > 0 then markup = markup .. gears.string.xml_escape(displayed_text:sub(1, start_pos - 1)) end
             markup = markup .. "<span background='" .. theme.textbox_fg_selection .. "' foreground='" .. theme.textbox_fg_selected .. "'>"
             markup = markup .. gears.string.xml_escape(displayed_text:sub(start_pos, end_pos))
             markup = markup .. "</span>"
@@ -91,6 +92,8 @@ local function create_text_input(args)
             local cursor_char = "|"
             if self.cursor_pos == 0 then
                 markup = "<span foreground='" .. theme.textbox_fg .. "'>" .. cursor_char .. "</span>" .. markup
+			elseif self.cursor_pos == #self.text then
+				markup = markup .. "<span foreground='" .. theme.textbox_fg .. "'>" .. cursor_char .. "</span>"
             else
                 local prefix = markup:sub(1, self.cursor_pos)
                 local suffix = markup:sub(self.cursor_pos + 1)
@@ -99,6 +102,10 @@ local function create_text_input(args)
         end
         
         self.text_widget.markup = markup
+
+		-- Force immediate update
+	    self.text_widget:set_markup_silently(markup)
+	    self.text_widget:emit_signal("widget::redraw_needed")
     end
     
     -- Initialize cursor blink timer
@@ -196,19 +203,19 @@ local function create_text_input(args)
     end
     
     -- Select all text
-    function self:select_all()
-        self.selection_start = 0
-        self.selection_end = #self.text
-		self:update_display()
-    end
-    
-    -- Select word at cursor
-    function self:select_word()
-        if #self.text > 0 then
-            self.selection_start, self.selection_end = find_word_bounds(self.text, self.cursor_pos + 1)
-            self:update_display()
-        end
-    end
+	function self:select_all()
+	    self.selection_start = 1
+	    self.selection_end = #self.text
+        self:update_display()
+	end
+	
+	-- Select word at cursor
+	function self:select_word()
+	    if #self.text > 0 then
+	        self.selection_start, self.selection_end = find_word_bounds(self.text, self.cursor_pos)
+	        self:update_display()
+	    end
+	end
     
     -- Delete selection
     function self:delete_selection()
@@ -216,7 +223,8 @@ local function create_text_input(args)
             local start_pos = math.min(self.selection_start, self.selection_end)
             local end_pos = math.max(self.selection_start, self.selection_end)
             
-            self.text = self.text:sub(1, start_pos) .. self.text:sub(end_pos + 1)
+            self.text = self.text:sub(0, start_pos - 1) .. self.text:sub(end_pos + 1)
+			self.cursor_pos = start_pos - 1
             self.selection_start = nil
             self.selection_end = nil
             
@@ -265,6 +273,17 @@ local function create_text_input(args)
                 is_ctrl = true
                 break
             end
+        end
+
+		if key == "Escape" then
+            -- If there's a selection, clear it and return true to indicate we handled it
+            if self.selection_start and self.selection_end then
+                self.selection_start = nil
+                self.selection_end = nil
+                return true
+            end
+            -- If no selection, return false to let the key pass through
+            return false
         end
         
         if is_ctrl then
