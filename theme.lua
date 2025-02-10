@@ -52,10 +52,14 @@ theme.bg_urgent     = "#ff0000"
 theme.bg_minimize   = "#444444"
 theme.wibar_height = dpi(52)
 
-theme.fg_normal     = light_gray .. "d0"
-theme.fg_focus      = white
-theme.fg_urgent     = white
-theme.fg_minimize   = light_gray .. "b0"
+theme.fg_normal     = theme.light_gray .. "d0"
+theme.fg_focus      = theme.white
+theme.fg_urgent     = theme.white
+theme.fg_minimize   = theme.light_gray .. "b0"
+
+theme.textbox_fg = theme.white .. "aa"
+theme.textbox_fg_selection  = theme.selected .. "88"
+theme.textbox_fg_selected   = theme.pitch_black
 
 theme.snap_border_width = 0
 theme.useless_gap   = dpi(0)

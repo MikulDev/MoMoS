@@ -12,9 +12,8 @@ local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
 
 local theme = load_util("theme")
+local create_text_input = load_widget("text_input")
 
--- {{{ Error handling
--- Handle runtime errors after startup
 do
     local in_error = false
     awesome.connect_signal("debug::error", function (err)
@@ -22,13 +21,10 @@ do
         if in_error then return end
         in_error = true
 
-        naughty.notify({ preset = naughty.config.presets.critical,
-                         title = "Error in appmenu:",
-                         text = tostring(err) })
+        debug_log("[Error]: " .. tostring(err))
         in_error = false
     end)
 end
--- }}}
 
 -- Initialize the menu table that will hold all our functions and state
 appmenu_data = {
@@ -545,7 +541,11 @@ function create_search_box()
             valign = 'center',
             widget = wibox.container.place
         },
-        appmenu_data.search_textbox,
+		{
+	        appmenu_data.search_input.background,
+            bottom = dpi(4),
+			widget = wibox.container.margin
+		},
         spacing = dpi(8),
         layout = wibox.layout.fixed.horizontal
     }
@@ -879,14 +879,25 @@ function appmenu_create()
     end
 
     -- Create search textbox
-    appmenu_data.search_textbox = wibox.widget {
-        widget = wibox.widget.textbox,
-        id = "search_input",
-        text = "",
-        valign = 'center',
-        font = appmenu_data.font,
-        forced_height = dpi(24)
-    }
+    appmenu_data.search_input = create_text_input({
+	    disable_arrows = true,  -- Disable arrow keys since we use them for navigation
+	    font = appmenu_data.font,
+	    height = dpi(24),
+	    on_text_change = function(new_text)
+	        appmenu_data.current_filter = new_text
+	        appmenu_data.current_start = 1
+	        update_filtered_list(new_text)
+	        
+	        -- Reset focus to first item in filtered list
+	        appmenu_data.current_focus = {
+	            type = "apps",
+	            index = 1,
+	            pin_focused = false
+	        }
+	        ensure_focused_visible()
+	        refresh_menu_widget()
+	    end
+	})
 
     -- Initialize filtered list
     update_filtered_list("")
@@ -938,38 +949,14 @@ function appmenu_init()
             end
             
             -- Handle navigation keys
-            if key == "Up" or key == "Down" or key == "Left" or 
-               key == "Right" or key == "Return" or key == "Home" or 
-               key == "End" or key == "Tab" then
-                handle_keyboard_navigation(mod, key)
-                return
-            end
-            
-            -- Always handle search input
-            appmenu_data.current_filter = appmenu_data.current_filter or ""
-            
-            if key == "BackSpace" then
-                if #appmenu_data.current_filter > 0 then
-                    appmenu_data.current_filter = string.sub(appmenu_data.current_filter, 1, -2)
-                end
-            elseif #key == 1 then
-                appmenu_data.current_filter = appmenu_data.current_filter .. key
-            end
-            
-            if appmenu_data.search_textbox then
-                appmenu_data.search_textbox.text = appmenu_data.current_filter
-                appmenu_data.current_start = 1
-                update_filtered_list(appmenu_data.current_filter)
-                
-                -- Reset focus to first item in filtered list
-                appmenu_data.current_focus = {
-                    type = "apps",
-                    index = 1,
-                    pin_focused = false
-                }
-                ensure_focused_visible()
-                refresh_menu_widget()
-            end
+            if not appmenu_data.search_input:handle_key(mod, key) then
+			    -- Handle navigation keys only if the text input didn't handle the key
+			    if key == "Up" or key == "Down" or key == "Left" or 
+			       key == "Right" or key == "Return" or key == "Home" or 
+			       key == "End" or key == "Tab" then
+			        handle_keyboard_navigation(mod, key)
+			    end
+			end
         end,
         keyreleased_callback = function(_, mod, key)
             -- Restore focus state when Control is released
@@ -1004,9 +991,9 @@ function appmenu_show()
             index = 1,
             pin_focused = false
         }
-        if appmenu_data.search_textbox then
-            appmenu_data.search_textbox.text = ""
-        end
+        if appmenu_data.search_input then
+		    appmenu_data.search_input:set_text("")
+		end
         update_filtered_list("")
         refresh_menu_widget()
         appmenu_data.wibox:emit_signal("property::current_focus")

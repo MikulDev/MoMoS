@@ -11,6 +11,18 @@ local theme = dofile(config_dir .. "theme.lua")
 
 local util = {}  -- Create the module table
 
+do
+    local in_error = false
+    awesome.connect_signal("debug::error", function (err)
+        -- Make sure we don't go into an endless error loop
+        if in_error then return end
+        in_error = true
+
+        debug_log("[Error]: " .. tostring(err))
+        in_error = false
+    end)
+end
+
 function load_util(name)
 	return dofile(string.format("%s%s.lua", config_dir, name))
 end
