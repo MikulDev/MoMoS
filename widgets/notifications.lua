@@ -108,20 +108,8 @@ end
 
 -- Create a notification entry widget
 local function create_notification_widget(n)
-    -- Create close button
-    local close_button = create_image_button({
-        image_path = config_dir .. "theme-icons/close.png",
-        image_size = dpi(16),
-        padding = dpi(10),
-        button_size = dpi(34),
-        opacity = 0.5,
-        opacity_hover = 1,
-        bg_color = theme.notifications.close_button_bg,
-        border_color = theme.notifications.button_border,
-        hover_bg = theme.notifications.close_button_bg_focus,
-        hover_border = theme.notifications.button_border_focus,
-        shape_radius = dpi(0),
-        on_click = function()
+
+	local close_notif = function()
 	        local index = nil
 	        for i, notif in ipairs(notifications.history) do
 	            if notif == n then 
@@ -137,21 +125,38 @@ local function create_notification_widget(n)
 	            notifications.popup.widget = create_notification_list()
 	            
 				-- Wait for UI to refresh
-	            gears.timer.start_new(0.01, function()
-                    if mouse.current_widget then
-						-- Hover next widget
-						mouse.current_widget:emit_signal("mouse::enter")
-						-- Wait for close button to be visible
-						gears.timer.start_new(0.01, function()
-							-- Hover close button
-							local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
-							if cbutton then cbutton:emit_signal("mouse::enter") end
-						end)
-                    end
-                    return false
-                end)
+				if close_hover then 				
+		            gears.timer.start_new(0.01, function()
+	                    if mouse.current_widget then
+							-- Hover next widget
+							mouse.current_widget:emit_signal("mouse::enter")
+							-- Wait for close button to be visible
+							gears.timer.start_new(0.01, function()
+								-- Hover close button
+								local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
+								if cbutton then cbutton:emit_signal("mouse::enter") end
+							end)
+	                    end
+	                    return false
+	                end)
+				end				
 	        end
-	    end,
+	    end	
+	
+    -- Create close button
+    local close_button = create_image_button({
+        image_path = config_dir .. "theme-icons/close.png",
+        image_size = dpi(16),
+        padding = dpi(10),
+        button_size = dpi(34),
+        opacity = 0.5,
+        opacity_hover = 1,
+        bg_color = theme.notifications.close_button_bg,
+        border_color = theme.notifications.button_border,
+        hover_bg = theme.notifications.close_button_bg_focus,
+        hover_border = theme.notifications.button_border_focus,
+        shape_radius = dpi(0),
+        on_click = close_notif,
 		id = "close_button"
     })
 
@@ -278,6 +283,9 @@ local function create_notification_widget(n)
                     notifications.popup.widget = create_notification_list()
                 end
             end
+        end),
+		awful.button({}, 3, function()
+			close_notif()
         end)
     ))
 
