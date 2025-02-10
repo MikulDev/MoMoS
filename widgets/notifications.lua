@@ -122,6 +122,9 @@ local function create_notification_widget(n)
 			debug_log("closed notification")	
 	        
 	        if notifications.popup and notifications.popup.visible then
+				-- Close menu if that was the last notification
+				if #notifications.history == 0 then notifications.popup.visible = false return end
+
 	            notifications.popup.widget = create_notification_list()
 	            
 				-- Wait for UI to refresh
