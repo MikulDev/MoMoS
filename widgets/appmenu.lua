@@ -46,7 +46,7 @@ appmenu_data = {
 	icons = {
         search = icon_dir .. "search.png",  -- Your search icon file
         pin = icon_dir .. "pin.png",        -- Your pin icon file
-        pinned = icon_dir .. "pinned.png"   -- Your pinned icon file
+        pinned = icon_dir .. "unpin.png"   -- Your pinned icon file
     }
 }
 
@@ -337,7 +337,8 @@ function create_entry(app, index)
         image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
         image_size = dpi(24),
         padding = dpi(6),
-        opacity = 0.8,
+        opacity = 0.6,
+        opacity_hover = 1.0,
         bg_color = theme.appmenu.pin_button_bg,
         hover_bg = theme.appmenu.pin_button_bg_focus,
         border_color = theme.appmenu.button_border .. "55",

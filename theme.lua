@@ -112,6 +112,7 @@ theme.appmenu.button_bg = theme.dark_gray .. "dd"
 theme.appmenu.button_bg_focus = theme.selected_dark .. "77"
 theme.appmenu.search_bg = theme.pitch_black .. "80"
 theme.appmenu.pin_button_bg = theme.dark_gray .. "cc"
+theme.appmenu.pin_button_bg_focus = theme.selected_dark .. "77"
 theme.appmenu.fg = theme.light_gray .. "d0"
 theme.appmenu.border = theme.gray
 theme.appmenu.button_border = theme.light_gray
