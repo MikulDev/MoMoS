@@ -55,19 +55,28 @@ local function format_timestamp(timestamp)
 end
 
 local function wrap_notification(n)
-	return {
+    -- Get the app class from the first client if available
+    local app_class = ""
+    if n.clients and #n.clients > 0 then
+        app_class = n.clients[1].class or ""
+    end
+    
+    return {
         title = n.title or "",
         text = n.message or n.text or "",
         icon = n.app_icon or n.icon or "",
         timestamp = os.time(),
         notification = n,
-        actions = n.actions
+        actions = n.actions,
+        app_class = app_class  -- Store the app class
     }
 end
 
 local function add_notification(n)
     -- Create notification entry with the full notification object
     local notification = wrap_notification(n)
+
+	if client.focus and notification.app_class == client.focus.class then return end	
     
     -- Add to start of table
     table.insert(notifications.history, 1, notification)
@@ -753,6 +762,45 @@ naughty.connect_signal("request::display", function(n)
                 remove_notification(n)
             end))
     end
+end)
+
+-- Remove notifications for this app from the history
+local function clear_notifications_for_app(app_class)
+    local i = 1
+    while i <= #notifications.history do
+        local notif = notifications.history[i]
+        if notif.app_class == app_class then
+            -- Destroy the notification if it still exists
+            if notif.notification then
+                notif.notification:destroy(1)  -- Use action 1 for expired/dismissed
+            end
+            table.remove(notifications.history, i)
+        else
+            i = i + 1
+        end
+    end
+    
+    -- Update the notification count
+    update_count()
+    
+    -- Update popup if visible
+    if notifications.popup and notifications.popup.visible then
+        notifications.popup.widget = create_notification_list()
+        -- Hide popup if no notifications left
+        if #notifications.history == 0 then
+            notifications.popup.visible = false
+        end
+    end
+end
+
+-- Clear corresponding notifications for focused app
+client.connect_signal("focus", function(c)
+	local focused_client = c
+	gears.timer.start_new(1, function()
+		if client.focus == focused_client then
+			clear_notifications_for_app(c.class)
+		end
+	end)
 end)
 
 return notifications
