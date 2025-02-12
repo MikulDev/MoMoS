@@ -982,12 +982,15 @@ function appmenu_show()
         }
 
         appmenu_data.wibox:emit_signal("property::current_focus")
-        appmenu_data.wibox.visible = true
         awful.placement.centered(appmenu_data.wibox)
 
         if appmenu_data.keygrabber then
             appmenu_data.keygrabber:start()
         end
+
+        gears.timer.start_new(0.01, function()
+            appmenu_data.wibox.visible = true
+        end)
     end
 end
 
