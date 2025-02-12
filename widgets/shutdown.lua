@@ -164,33 +164,35 @@ end
 function handle_keyboard_navigation(mod, key)
     if key == "Escape" then
         shutdown_hide()
-        return
+        return true
     end
 
     if key == "Tab" then
         shutdown_data.current_index = shutdown_data.current_index % #shutdown_data.actions + 1
         shutdown_data.wibox:emit_signal("property::current_index")
-        return
+        return true
     end
 
     if key == "Return" then
         local action = shutdown_data.actions[shutdown_data.current_index]
         awful.spawn(action.command)
         shutdown_hide()
-        return
+        return true
     end
 
     if key == "Left" and shutdown_data.current_index > 1 then
         shutdown_data.current_index = shutdown_data.current_index - 1
         shutdown_data.wibox:emit_signal("property::current_index")
-        return
+        return true
     end
 
     if key == "Right" and shutdown_data.current_index < #shutdown_data.actions then
         shutdown_data.current_index = shutdown_data.current_index + 1
         shutdown_data.wibox:emit_signal("property::current_index")
-        return
+        return true
     end
+
+	return false
 end
 
 function shutdown_init()
@@ -224,7 +226,12 @@ function shutdown_init()
 
     shutdown_data.keygrabber = awful.keygrabber {
         autostart = false,
-        keypressed_callback = function(_, mod, key) handle_keyboard_navigation(mod, key) end,
+        keypressed_callback = function(_, mod, key) 
+			if not handle_keyboard_navigation(mod, key) then
+				-- Passthrough other keybindings to root
+				execute_keybind(key, mod)
+			end
+		end,
         stop_callback = function()
             shutdown_data.wibox.visible = false
         end
