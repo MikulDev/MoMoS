@@ -917,39 +917,42 @@ function appmenu_init()
         awful.button({ }, 5, function() scroll_list(1) end)
     ))
 
-    appmenu_data.keygrabber = awful.keygrabber {
-        autostart = false,
-        keypressed_callback = function(_, mod, key)
-            -- Preserve focus state when Control is pressed
-            if key == "Control_L" or key == "Control_R" then
-                preserve_focus_state()
-                return
-            end
-            
-            -- Check for textbox input
-            if not appmenu_data.search_input:handle_key(mod, key) then
-			    -- Handle navigation keys only if the text input didn't handle the key
-				if key == "Escape" then
+	appmenu_data.keygrabber = awful.keygrabber {
+	    autostart = false,
+	    keypressed_callback = function(self, mod, key)
+	        -- Preserve focus state when Control is pressed
+	        if key == "Control_L" or key == "Control_R" then
+	            preserve_focus_state()
+	            return
+	        end
+
+	        -- Check for textbox input
+	        if not appmenu_data.search_input:handle_key(mod, key) then
+	            -- Handle navigation keys only if the text input didn't handle the key
+	            if key == "Escape" then
 	                appmenu_hide()
 	                return
 	            end
-			    if key == "Up" or key == "Down" or key == "Left" or 
-			       key == "Right" or key == "Return" or key == "Home" or 
-			       key == "End" or key == "Tab" then
-			        handle_keyboard_navigation(mod, key)
-			    end
-			end
-        end,
-        keyreleased_callback = function(_, mod, key)
-            -- Restore focus state when Control is released
-            if key == "Control_L" or key == "Control_R" then
-                restore_focus_state()
-            end
-        end,
-        stop_callback = function()
-            appmenu_data.wibox.visible = false
-        end
-    }
+	            if key == "Up" or key == "Down" or key == "Left" or
+	               key == "Right" or key == "Return" or key == "Home" or
+	               key == "End" or key == "Tab" then
+	                handle_keyboard_navigation(mod, key)
+	            end
+	        end
+
+			-- Passthrough other keybindings to root
+			execute_keybind(key, mod)
+	    end,
+	    keyreleased_callback = function(_, mod, key)
+	        -- Restore focus state when Control is released
+	        if key == "Control_L" or key == "Control_R" then
+	            restore_focus_state()
+	        end
+	    end,
+	    stop_callback = function()
+	        appmenu_data.wibox.visible = false
+	    end
+	}
 
     return appmenu_data.wibox
 end

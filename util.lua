@@ -49,6 +49,10 @@ function debug_log(message)
     end
 end
 
+function take_screenshot()
+	os.execute('path="' .. screenshot_path .. '$(date +%s).png" && maim -s -u "$path" && xclip -selection clipboard -t image/png "$path"')
+end
+
 function table_to_string(tbl, indent)
     indent = indent or 0
     local string = string.rep("  ", indent) .. "{\n"

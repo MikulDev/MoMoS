@@ -50,7 +50,6 @@ web_browser = config.web_browser
 bluetooth = config.bluetooth
 -- }}}
 
-
 -- {{{ Settings
 modkey = config.modkey
 screenshot_path = config.screenshot_path
@@ -656,9 +655,7 @@ awful.button({ }, 5, awful.tag.viewprev)
 globalkeys = gears.table.join(
 awful.key({ "Control", modkey, "Mod1"}, "q", function () awful.spawn('shutdown now') end,
 {description="shutdown", group="awesome"}),
-awful.key({}, "Print", function ()
-    os.execute('path="' .. screenshot_path .. '$(date +%s).png" && maim -s "$path" && xclip -selection clipboard -t image/png "$path"')
-    end,
+awful.key({}, "Print", take_screenshot,
 {description="screenshot", group="awesome"}),
 awful.key({ modkey,           }, "s",      hotkeys_popup.show_help,
 {description="show help", group="awesome"}),
