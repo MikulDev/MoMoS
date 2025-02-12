@@ -3,6 +3,8 @@ local wibox = require("wibox")
 local gears = require("gears")
 local beautiful = require("beautiful")
 local dpi = require("beautiful.xresources").apply_dpi
+local naughty = require("naughty")
+local util = require("util")
 
 -- Global state table
 switcher_data = {
@@ -10,12 +12,104 @@ switcher_data = {
     tasks = {},
     sel_task = 0,
     grabber = nil,
-    is_open = false
+    is_open = false,
+    desktop_entries = {}, -- Store desktop entries for icon lookup
+    current_label = nil   -- Reference to the label widget
 }
 
 local switcher = {}
 
-local function close_popup()
+local function set_title(text)
+    local title_width = math.max(40, math.ceil(#client.get() / 2) * dpi(64))
+    switcher_data.current_label.markup = '<span font="11" color="#ffffff">' ..
+        (clip_text(text, title_width) or "Unknown") .. '</span>'
+end
+
+-- Create a custom task widget
+local function create_task_widget(c)
+    local widget = wibox.widget {
+        {
+            {
+                -- Icon widget will be replaced with actual icon
+                id = "icon",
+                resize = true,
+                forced_width = dpi(32),
+                forced_height = dpi(32),
+                widget = wibox.widget.imagebox
+            },
+            margins = dpi(12),
+            widget = wibox.container.margin
+        },
+        id = "background",
+        bg = beautiful.tasklist_bg_normal,
+        shape = gears.shape.rounded_rect,
+        shape_border_width = 1,
+        shape_border_color = beautiful.tasklist_shape_border_color,
+        forced_width = dpi(64),
+        forced_height = dpi(64),
+        widget = wibox.container.background
+    }
+
+    -- Find icon for the application
+    local function find_client_icon()
+        -- First try to get icon directly from client
+        if c.icon then
+            return gears.surface.load(c.icon)
+        end
+
+        -- Try to find icon from .desktop files
+        local client_class = string.lower(c.class or "")
+        for _, entry in ipairs(switcher_data.desktop_entries) do
+            local entry_name = string.lower(entry.name)
+            if entry_name:match(client_class) or client_class:match(entry_name) then
+                if entry.icon then
+                    return entry.icon
+                end
+            end
+        end
+
+        -- Fallback to default icon
+        return beautiful.awesome_icon
+    end
+
+    -- Set the icon
+    local icon = widget:get_children_by_id("icon")[1]
+    icon.image = find_client_icon()
+
+    -- Handle hover effects
+    local bg = widget:get_children_by_id("background")[1]
+
+    widget:connect_signal("mouse::enter", function()
+        for _, task in ipairs(switcher_data.tasks) do
+            task.widget:emit_signal("mouse::leave")
+        end
+        bg.bg = beautiful.tasklist_bg_focus
+        bg.shape_border_color = beautiful.tasklist_shape_border_color_focus
+        -- Update the label text
+        if switcher_data.current_label then
+            set_title(c.name)
+        end
+    end)
+
+    widget:connect_signal("mouse::leave", function()
+        bg.bg = c.minimized and beautiful.tasklist_bg_minimize or beautiful.tasklist_bg_normal
+        bg.shape_border_color = beautiful.tasklist_shape_border_color
+    end)
+
+    -- Handle click events
+    widget:buttons(gears.table.join(
+    awful.button({}, 1, function()
+        jump_to_client(c)
+        client.focus = c
+        c:raise()
+        close_popup()
+    end)
+))
+
+return widget
+end
+
+function close_popup()
     if switcher_data.popup then
         switcher_data.popup.visible = false
         switcher_data.is_open = false
@@ -25,103 +119,66 @@ local function close_popup()
     end
 end
 
-local function set_focus_to_mouse()
-    -- Get all clients in the current tag
-    local clients = client.get()
-    local focused = false
-    local coords = mouse.coords()
-    
-    -- Find topmost client under cursor
-    for _, c in ipairs(clients) do
-        if c:geometry().x < coords.x and
-           c:geometry().y < coords.y and
-           c:geometry().x + c:geometry().width > coords.x and
-           c:geometry().y + c:geometry().height > coords.y and
-           c:isvisible() then
-            client.focus = c
-            focused = true
-            break
-        end
-    end
-    
-    -- If no client was found under cursor, remove focus
-    if not focused then
-        client.focus = nil
-    end
-end
-
 function switcher.show()
     if switcher_data.is_open then
         return
     end
     
+    gears.timer.start_new(0.01, function()
+        if #switcher_data.tasks > 0 then
+            switcher_data.sel_task = 1
+            local first_task = switcher_data.tasks[switcher_data.sel_task]
+            first_task.widget:emit_signal("mouse::enter")
+            set_title(first_task.client.name)
+        end
+    end)
+
+    -- Scan desktop files for icons if not already done
+    if #switcher_data.desktop_entries == 0 then
+        scan_desktop_files()
+    end
+
+    -- Unfocus all clients when box opens
+    client.focus = nil
+
     switcher_data.is_open = true
     switcher_data.tasks = {}
     switcher_data.sel_task = 0
-    
-    local task_switcher = wibox.widget {
-        {
-            id = 'task_list',
-            widget = awful.widget.tasklist {
-                screen = screen[1],
-                filter = awful.widget.tasklist.filter.allscreen,
-                buttons = tasklist_buttons,
-                style = {
-                    shape = gears.shape.rounded_rect,
-                    spacing = 12,
-                },
-                layout = {
-                    -- Force 2 rows from left to right
-                    forced_num_cols = #client.get() / 2,
-                    layout = wibox.layout.grid.vertical
-                },
-                widget_template = {
-                    {
-                        {
-                            id = 'clienticon',
-                            widget = awful.widget.clienticon,
-                        },
-                        margins = 12,
-                        widget = wibox.container.margin,
-                    },
-                    id = 'background_role',
-                    forced_width = dpi(64),
-                    forced_height = dpi(64),
-                    widget = wibox.container.background,
-                    create_callback = function(self, c, index, objects)
-                        self:get_children_by_id('clienticon')[1].client = c
-                        local bg = self:get_children_by_id('background_role')[1]
 
-                        -- Highlighting icons when hovered
-                        self:connect_signal("mouse::enter", function()
-                            bg.bg = beautiful.tasklist_bg_focus
-                            bg.shape_border_color = beautiful.tasklist_shape_border_color_focus
-                        end)
-                        
-                        -- Remove highlighting when un-hovered
-                        self:connect_signal("mouse::leave", function()
-                            if (c ~= client.focus) then
-                                if (c.minimized) then
-                                    bg.bg = beautiful.tasklist_bg_minimize
-                                else
-                                    bg.bg = beautiful.tasklist_bg_normal
-                                end
-                                bg.shape_border_color = beautiful.tasklist_shape_border_color
-                            end
-                        end)
+    -- Create grid layout for tasks
+    local task_grid = wibox.layout.grid()
+    local client_count = #client.get()
+    task_grid.forced_num_cols = client_count <= 4 and client_count or math.ceil(#client.get() / 2)
+    task_grid.spacing = dpi(12)
 
-                        -- Add to the list of tasks
-                        table.insert(switcher_data.tasks, {self, c})
-                    end,
-                },
-            }
-        },
-        margins = 12,
-        widget = wibox.container.margin,
+    -- Add all clients to the grid
+    for _, c in ipairs(client.get()) do
+        local task_widget = create_task_widget(c)
+        task_grid:add(task_widget)
+        table.insert(switcher_data.tasks, {widget = task_widget, client = c})
+    end
+
+    -- Create the window title label
+    local title_label = wibox.widget {
+        markup = '<span font="11" color="#ffffff"></span>',
+        align = "center",
+        widget = wibox.widget.textbox
     }
+    switcher_data.current_label = title_label
 
+    -- Create main layout with grid and label
+    local main_layout = wibox.layout.fixed.vertical()
+    main_layout.spacing = dpi(12)
+    main_layout:add(task_grid)
+    main_layout:add(title_label)
+
+    -- Create the popup
     switcher_data.popup = awful.popup {
-        widget = task_switcher,
+        widget = wibox.widget {
+            main_layout,
+            margins = dpi(12),
+            widget = wibox.container.margin,
+        },
         screen = mouse.screen,
         bg = '#0f0f0fa0',
         border_color = '#252525a0',
@@ -129,42 +186,49 @@ function switcher.show()
         ontop = true,
         placement = awful.placement.centered,
         shape = gears.shape.rounded_rect,
+        visible = false
     }
+    gears.timer.start_new(0.01, function()
+        switcher_data.popup.visible = true
+    end)
 
+    -- Handle keyboard navigation
     switcher_data.grabber = awful.keygrabber.run(function(mod, key, event)
-        if (event == "press") then
-            -- Close popup
-            if (key == "Escape") then
+        if event == "press" then
+            if key == "Escape" then
                 close_popup()
                 set_focus_to_mouse()
                 return
-            -- Cycle through tasks
-            elseif (key == "Tab") then
-                count = 0
-                for _, c in ipairs(switcher_data.tasks) do
-                    count = count + 1
-                    -- Un-highlight all tasks
-                    c[1]:emit_signal("mouse::leave")
+            elseif key == "Tab" then
+                -- Un-highlight current task
+                if switcher_data.sel_task > 0 then
+                    switcher_data.tasks[switcher_data.sel_task].widget:emit_signal("mouse::leave")
                 end
-                -- Highlight and store index of next task
-                switcher_data.sel_task = (switcher_data.sel_task % count) + 1
-                switcher_data.tasks[switcher_data.sel_task][1]:emit_signal("mouse::enter")
-            -- Open selected task
-            elseif (key == "Return") then
-                local sel_client = switcher_data.tasks[switcher_data.sel_task][2]
-                client.focus = sel_client
-                sel_client.first_tag:view_only()
+
+                -- Select next task
+                switcher_data.sel_task = (switcher_data.sel_task % #switcher_data.tasks) + 1
+
+                -- Highlight new selection and update label
+                local sel = switcher_data.tasks[switcher_data.sel_task]
+                sel.widget:emit_signal("mouse::enter")
+                set_title(sel.client.name)
+            elseif key == "Return" then
+                local sel = switcher_data.tasks[switcher_data.sel_task]
+                if sel then
+                    jump_to_client(sel.client)
+                    client.focus = sel.client
+                    sel.client:raise()
+                end
                 close_popup()
             end
+            -- Passthrough other keybindings
+            execute_keybind(key, mod)
         end
     end)
 
-    -- Close when clicked outside box
+    -- Close when clicked outside
     client.connect_signal("button::press", close_popup)
     switcher_data.popup:connect_signal("button::press", close_popup)
-
-    -- Unfocus all clients when box opens
-    client.focus = nil
 end
 
 return switcher

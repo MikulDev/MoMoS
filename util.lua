@@ -66,6 +66,17 @@ function table_to_string(tbl, indent)
     return string .. string.rep("  ", indent) .. "}"
 end
 
+function clip_text(text, length)
+    if not text then return "" end
+    -- Remove newlines and extra spaces
+    text = text:gsub("\n", " "):gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1")
+    -- Truncate if too long
+    if #text > length then
+        return text:sub(1, length) .. "..."
+    end
+    return text
+end
+
 -- Makes a vertical line widget with the specified width and margin
 function create_divider(width, margin)
     return wibox.widget {
@@ -442,5 +453,24 @@ function set_focus_to_mouse()
     end
 end
 -- }}}
+
+function execute_keybind(key, mod)
+	for _, binding in ipairs(root.keys()) do
+        if awful.key.match(binding, mod, key) then
+            -- Get the Lua wrapper object via the private reference
+            local lua_key = binding._private._legacy_convert_to
+            if lua_key and lua_key.trigger then
+                lua_key:trigger()
+                return
+            end
+        end
+    end
+end
+
+function jump_to_client(client)
+	local current_pos = mouse.coords()
+    client:jump_to()
+	mouse.coords{x = current_pos.x, y = current_pos.y}
+end
 
 return util
