@@ -350,6 +350,14 @@ function create_entry(app, index)
         end
     })
     widget.pin_button.visible = false
+    widget.pin_button:connect_signal("mouse::enter", function()
+        appmenu_data.current_focus.pin_focused = true
+        appmenu_data.wibox:emit_signal("property::current_focus")
+    end)
+    widget.pin_button:connect_signal("mouse::leave", function()
+        appmenu_data.current_focus.pin_focused = false
+        appmenu_data.wibox:emit_signal("property::current_focus")
+    end)
 
     -- Create main content
     local main_content = wibox.widget {
