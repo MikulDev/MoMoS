@@ -45,7 +45,7 @@ appmenu_data = {
     },
 	icons = {
         search = icon_dir .. "search.png",  -- Your search icon file
-        pin = icon_dir .. "pin.png",        -- Your pin icon file
+        pin = icon_dir .. "pin.svg",        -- Your pin icon file
         pinned = icon_dir .. "unpin.png"   -- Your pinned icon file
     }
 }
@@ -335,7 +335,7 @@ function create_entry(app, index)
     -- Create pin button using create_image_button
     widget.pin_button = create_image_button({
         image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
-        image_size = dpi(24),
+        image_size = dpi(18),
         padding = dpi(6),
         opacity = 0.6,
         opacity_hover = 1.0,
@@ -343,7 +343,6 @@ function create_entry(app, index)
         hover_bg = theme.appmenu.pin_button_bg_focus,
         border_color = theme.appmenu.button_border .. "55",
         hover_border = theme.appmenu.button_border_focus,
-        button_size = dpi(32),
         on_click = function()
             toggle_pin(app)
             return true
@@ -382,17 +381,10 @@ function create_entry(app, index)
             {
                 main_content,
                 nil,
-                {
-                    widget.pin_button,
-                    right = dpi(2),
-                    top = dpi(2),
-                    bottom = dpi(2),
-                    widget = wibox.container.margin
-                },
-                layout = wibox.layout.align.horizontal,
-                expand = "inside"
+                widget.pin_button,
+                layout = wibox.layout.align.horizontal
             },
-            margins = dpi(4),
+            margins = dpi(6),
             widget = wibox.container.margin,
         },
         bg = theme.appmenu.button_bg,
