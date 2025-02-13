@@ -326,7 +326,7 @@ function create_entry(app, index)
         image_path = app.icon,
         fallback_text = "⬡",
         image_size = dpi(24),
-        padding = dpi(6),
+        padding = dpi(2),
         bg_color = "transparent",
         border_color = "transparent",
         hover_bg = "transparent"
