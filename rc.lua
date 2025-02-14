@@ -172,9 +172,9 @@ if (config.split_ultrawide) then
 	if full_screen_width / full_screen_height > 16.0/9.0 then
 		local new_width = math.ceil(geo.width / 2)
 		local new_width2 = geo.width - new_width
-		screen[1]:fake_resize(geo.x, geo.y, new_width, geo.height)
-		screen.fake_add(geo.x + new_width, geo.y, new_width2, geo.height)
-	end
+        screen[1]:fake_resize(geo.x, geo.y, new_width, geo.height)
+        screen.fake_add(geo.x + new_width, geo.y, new_width2, geo.height)
+    end
 end
 -- }}}
 
@@ -553,7 +553,7 @@ awful.screen.connect_for_each_screen(function(s)
     end
 
     -- Create the wibox
-    s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal})
+    s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal, height = dpi(50)})
 
     -- Initialize systray
 	if s == screen.primary then
@@ -606,7 +606,7 @@ awful.screen.connect_for_each_screen(function(s)
             make_spacer(dpi(8)),
             s.mytaglist,
             make_spacer(10),
-            create_divider(1, dpi(8)),
+            create_divider(dpi(1), dpi(8)),
             make_spacer(dpi(10)),
             -- Tasklist
             {
@@ -614,8 +614,8 @@ awful.screen.connect_for_each_screen(function(s)
                     widget = s.mytasklist,
                 },
                 widget = wibox.container.margin,
-                top = 3,
-                bottom = 3
+                top = dpi(3),
+                bottom = dpi(3)
             },
             s.mypromptbox,
         },
@@ -636,7 +636,7 @@ awful.screen.connect_for_each_screen(function(s)
             make_spacer(dpi(12)),
             s.mytextclock,  -- Use the screen-specific textclock
             make_spacer(dpi(12)),
-            create_divider(1, dpi(4)),
+            create_divider(dpi(1), dpi(4)),
         },
     })
     globalWibox = s.mywibox
