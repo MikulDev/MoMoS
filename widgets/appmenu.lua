@@ -236,8 +236,20 @@ function toggle_pin(app)
     refresh_menu_widget()
 end
 
+local icon_state = {
+    dragging = false,
+    was_dragging = false,
+    drag_origin = {x = 0, y = 0}
+}
 -- Create a pinned app icon
 function create_pinned_icon(app, index)
+    app.index = index
+
+    local function swap_entries(Table, Pos1, Pos2)
+        Table[Pos1], Table[Pos2] = Table[Pos2], Table[Pos1]
+        return Table
+    end
+
     local icon_container = create_image_button({
         image_path = app.icon,
         fallback_text = "⬡",
@@ -248,21 +260,45 @@ function create_pinned_icon(app, index)
         border_color = theme.appmenu.button_border .. "33",
         hover_border = theme.appmenu.button_border_focus,
         shape_radius = dpi(8),
-        on_click = function()
-            awful.spawn(app.exec)
-            appmenu_hide()
+        on_click = function(self)
+            icon_state.drag_origin = mouse.coords()
+            gears.timer.start_new(0.01, function()
+                local coords = mouse.coords()
+                local drag_dir = 0
+                if coords.x >= icon_state.drag_origin.x + dpi(52) then drag_dir = 1
+                elseif coords.x <= icon_state.drag_origin.x - dpi(52) then drag_dir = -1 end
+                if drag_dir ~= 0 then
+                    if drag_dir == 1 and app.index < #appmenu_data.pinned_apps then
+                        swap_entries(appmenu_data.pinned_apps, app.index, app.index + 1)
+                        app.index = app.index + 1
+                    elseif drag_dir == -1 and app.index > 1 then
+                        swap_entries(appmenu_data.pinned_apps, app.index, app.index - 1)
+                        app.index = app.index - 1
+                    end
+                    icon_state.dragging = true
+                    icon_state.drag_origin = mouse.coords()
+                    appmenu_data.current_focus.index = app.index
+                    save_pinned_apps()
+                    refresh_menu_widget()
+                end
+                if not mouse.is_left_mouse_button_pressed then
+                    icon_state.dragging = false
+                    return false
+                end
+                return true
+            end)
             return true
         end,
-        on_ctrl_click = function()
-            run_with_sudo(app.exec)
-            appmenu_hide()
-            return true
+        on_release = function()
+            if not icon_state.dragging then
+                awful.spawn(app.exec)
+                appmenu_hide()
+            end
         end,
         on_right_click = function()
-            table.remove(appmenu_data.pinned_apps, index)
+            table.remove(appmenu_data.pinned_apps, app.index)
             save_pinned_apps()
             refresh_menu_widget()
-            return true
         end
     })
 
@@ -280,7 +316,7 @@ function create_pinned_icon(app, index)
         icon_container:update_focus()
     end)
 
-    -- Mouse handlers with proper signals
+    -- Mouse enter handler for focus
     icon_container:connect_signal("mouse::enter", function()
         appmenu_data.current_focus = {
             type = "pinned",
@@ -290,14 +326,8 @@ function create_pinned_icon(app, index)
         appmenu_data.wibox:emit_signal("property::current_focus")
     end)
 
-    icon_container:connect_signal("mouse::leave", function()
-        appmenu_data.current_focus = {
-            type = "pinned",
-            index = nil,
-            pin_focused = false
-        }
-        appmenu_data.wibox:emit_signal("property::current_focus")
-    end)
+    -- Add hover cursor
+    add_hover_cursor(icon_container)
 
     -- Initial focus state
     icon_container:update_focus()
@@ -489,7 +519,8 @@ function create_pinned_row()
     }
 
     for i, app in ipairs(appmenu_data.pinned_apps) do
-        pinned_row:add(create_pinned_icon(app, i))
+        local icon = create_pinned_icon(app, i)
+        pinned_row:add(icon)
     end
 
     -- Create container with bottom border
@@ -643,11 +674,11 @@ end
 
 -- Updates the entire menu widget with new content
 function refresh_menu_widget()
-	if #appmenu_data.pinned_apps > 0 then
-		if appmenu_data.wibox.height < dpi(672) then appmenu_data.wibox.y = appmenu_data.wibox.y - 80 end
+    if #appmenu_data.pinned_apps > 0 then
+        if appmenu_data.wibox.height < dpi(672) then appmenu_data.wibox.y = appmenu_data.wibox.y - dpi(80) end
 		appmenu_data.wibox.height = dpi(672)
 	else
-		if appmenu_data.wibox.height > dpi(590) then appmenu_data.wibox.y = appmenu_data.wibox.y + 80 end
+        if appmenu_data.wibox.height > dpi(590) then appmenu_data.wibox.y = appmenu_data.wibox.y + dpi(80) end
 		appmenu_data.wibox.height = dpi(590)
 	end
     if not appmenu_data.wibox then return end

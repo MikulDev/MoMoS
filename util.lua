@@ -100,35 +100,37 @@ function create_image_button(args)
     local image_size = args.image_size or dpi(24)
     local padding = args.padding or dpi(6)
     local opacity = args.opacity or 1.0
-	local opacity_hover = args.opacity_hover or opacity or 1
+    local opacity_hover = args.opacity_hover or opacity or 1
     local bg_color = args.bg_color or theme.bg_normal
     local border_color = args.border_color or theme.border_normal
     local hover_bg = args.hover_bg or args.bg_color
     local hover_border = args.hover_border or args.border_color
     local button_size = args.button_size
     local shape_radius = args.shape_radius or dpi(6)
+    -- Support both old and new click handlers
     local on_click = args.on_click
     local on_right_click = args.on_right_click
     local on_ctrl_click = args.on_ctrl_click
-	local id = args.id or ""
+    local on_release = args.on_release
+    local id = args.id or ""
     
     -- Create the image or fallback text widget
     local content_widget
     if image_path then
-	    content_widget = wibox.widget {
-	        {
-	            image = image_path,
-	            resize = true,
-	            forced_width = image_size,
-	            forced_height = image_size,
-	            opacity = opacity,
-	            widget = wibox.widget.imagebox,
-	            id = 'icon'
-	        },
-	        margins = padding,
-	        widget = wibox.container.margin
-	    }
-	else
+        content_widget = wibox.widget {
+            {
+                image = image_path,
+                resize = true,
+                forced_width = image_size,
+                forced_height = image_size,
+                opacity = opacity,
+                widget = wibox.widget.imagebox,
+                id = 'icon'
+            },
+            margins = padding,
+            widget = wibox.container.margin
+        }
+    else
         content_widget = wibox.widget {
             {
                 text = fallback_text,
@@ -164,50 +166,60 @@ function create_image_button(args)
     end
 
     -- Hover effects
-	button:connect_signal("button::focus", function()
-	    -- Change button colors
-	    button.bg = hover_bg
-	    button.shape_border_color = hover_border
-	    -- Change icon opacity
-	    local imagebox = button.widget:get_children_by_id('icon')[1]
-	    if imagebox then imagebox.opacity = opacity_hover end
-	end)
-	
-	button:connect_signal("button::unfocus", function()
-	    -- Reset button colors
-	    button.bg = bg_color
-	    button.shape_border_color = border_color
-	    -- Reset icon opacity
-	    local imagebox = button.widget:get_children_by_id('icon')[1]
-	    if imagebox then imagebox.opacity = opacity end
-	end)
+    button:connect_signal("button::focus", function()
+        -- Change button colors
+        button.bg = hover_bg
+        button.shape_border_color = hover_border
+        -- Change icon opacity
+        local imagebox = button.widget:get_children_by_id('icon')[1]
+        if imagebox then imagebox.opacity = opacity_hover end
+    end)
 
-	button:connect_signal("mouse::enter", function()
-	    button:emit_signal("button::focus")
-	end)
+    button:connect_signal("button::unfocus", function()
+        -- Reset button colors
+        button.bg = bg_color
+        button.shape_border_color = border_color
+        -- Reset icon opacity
+        local imagebox = button.widget:get_children_by_id('icon')[1]
+        if imagebox then imagebox.opacity = opacity end
+    end)
 
-	button:connect_signal("mouse::leave", function()
-	    button:emit_signal("button::unfocus")
-	end)
+    button:connect_signal("mouse::enter", function()
+        button:emit_signal("button::focus")
+    end)
 
-	add_hover_cursor(button)
+    button:connect_signal("mouse::leave", function()
+        button:emit_signal("button::unfocus")
+    end)
+
+    add_hover_cursor(button)
 
     -- Click handlers
     local click_handlers = {}
     
+    -- Use press/release handlers
     if on_click then
-        table.insert(click_handlers, awful.button({}, 1, on_click))
-    end
-    
-    if on_ctrl_click then
-        table.insert(click_handlers, awful.button({ "Control" }, 1, on_ctrl_click))
-    end
-    
-    if on_right_click then
-        table.insert(click_handlers, awful.button({}, 3, on_right_click))
+        button:connect_signal("button::press", function(self, lx, ly, button_id, mods)
+            if button_id == 1 then
+                -- Check for ctrl modifier
+                if on_ctrl_click and mods.Control then
+                    return on_ctrl_click(self, lx, ly)
+                else
+                    return on_click(self, lx, ly)
+                end
+            elseif button_id == 3 and on_right_click then
+                return on_right_click(self, lx, ly)
+            end
+        end)
     end
 
-    button:buttons(gears.table.join(table.unpack(click_handlers)))
+    if on_release then
+        button:connect_signal("button::release", function(self, lx, ly, button_id, mods)
+            if button_id == 1 and not mods.Control then
+                return on_release(self, lx, ly)
+            end
+        end)
+    end
 
     -- Add methods to update button properties
     function button:update_image(new_image)
