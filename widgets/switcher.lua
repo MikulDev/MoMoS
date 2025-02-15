@@ -20,9 +20,7 @@ switcher_data = {
 local switcher = {}
 
 local function set_title(text)
-    local title_width = math.max(40, math.ceil(#client.get() / 2) * dpi(64))
-    switcher_data.current_label.markup = '<span font="11" color="#ffffff">' ..
-        (clip_text(text, title_width) or "Unknown") .. '</span>'
+    switcher_data.current_label.markup = '<span font="11" color="#ffffff">' ..(text or "Unknown") .. '</span>'
 end
 
 -- Create a custom task widget
@@ -123,15 +121,6 @@ function switcher.show()
     if switcher_data.is_open then
         return
     end
-    
-    gears.timer.start_new(0.01, function()
-        if #switcher_data.tasks > 0 then
-            switcher_data.sel_task = 1
-            local first_task = switcher_data.tasks[switcher_data.sel_task]
-            first_task.widget:emit_signal("mouse::enter")
-            set_title(first_task.client.name)
-        end
-    end)
 
     -- Scan desktop files for icons if not already done
     if #switcher_data.desktop_entries == 0 then
@@ -148,8 +137,12 @@ function switcher.show()
     -- Create grid layout for tasks
     local task_grid = wibox.layout.grid()
     local client_count = #client.get()
-    task_grid.forced_num_cols = client_count <= 4 and client_count or math.ceil(#client.get() / 2)
+    local width_clients = client_count <= 4 and client_count or math.ceil(client_count / 2)
+    task_grid.forced_num_cols = width_clients
     task_grid.spacing = dpi(12)
+    if client_count < 3 then
+        task_grid.forced_width = dpi(72)
+    end
 
     -- Add all clients to the grid
     for _, c in ipairs(client.get()) do
@@ -162,6 +155,7 @@ function switcher.show()
     local title_label = wibox.widget {
         markup = '<span font="11" color="#ffffff"></span>',
         align = "center",
+        forced_width = width_clients * dpi(36),
         widget = wibox.widget.textbox
     }
     switcher_data.current_label = title_label
@@ -226,9 +220,37 @@ function switcher.show()
         end
     end)
 
+    gears.timer.start_new(0.01, function()
+        if #switcher_data.tasks > 0 then
+            switcher_data.sel_task = 1
+            local first_task = switcher_data.tasks[switcher_data.sel_task]
+            first_task.widget:emit_signal("mouse::enter")
+            local title = is_string_empty(first_task.client.name)
+                          and first_task.client.class
+                          or first_task.client.name
+            set_title(title)
+        end
+    end)
+
     -- Close when clicked outside
     client.connect_signal("button::press", close_popup)
     switcher_data.popup:connect_signal("button::press", close_popup)
 end
+
+function set_default_title()
+    if #switcher_data.tasks > 0 then
+        switcher_data.sel_task = 1
+        local first_task = switcher_data.tasks[switcher_data.sel_task]
+        set_title(first_task.client.name)
+    end
+end
+
+client.connect_signal("list", function(c)
+    local switcher_enabled = switcher_data.is_open
+    close_popup()
+    if switcher_enabled then
+        switcher.show()
+    end
+end)
 
 return switcher
