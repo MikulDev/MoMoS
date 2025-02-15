@@ -109,14 +109,16 @@ naughty.config.defaults.margin = theme.notification_margin
 theme.appmenu = {}
 theme.appmenu.bg = theme.pitch_black .. "dd"
 theme.appmenu.button_bg = theme.dark_gray .. "dd"
-theme.appmenu.button_bg_focus = theme.selected_dark .. "77"
+theme.appmenu.button_bg_focus = theme.gray .. "88"
+theme.appmenu.button_bg_sudo = "#666455" .. "77"
 theme.appmenu.search_bg = theme.pitch_black .. "80"
 theme.appmenu.pin_button_bg = theme.dark_gray .. "cc"
-theme.appmenu.pin_button_bg_focus = theme.selected_dark .. "77"
+theme.appmenu.pin_button_bg_focus = theme.gray .. "88"
 theme.appmenu.fg = theme.light_gray .. "d0"
 theme.appmenu.border = theme.gray
 theme.appmenu.button_border = theme.light_gray
 theme.appmenu.button_border_focus = theme.white .. "55"
+theme.appmenu.button_border_sudo = "#D9B775" .. "dd"
 
 -- Shutdown
 theme.shutdown = {}

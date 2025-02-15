@@ -47,7 +47,8 @@ appmenu_data = {
         search = icon_dir .. "search.png",  -- Your search icon file
         pin = icon_dir .. "pin.svg",        -- Your pin icon file
         pinned = icon_dir .. "unpin.png"   -- Your pinned icon file
-    }
+    },
+    control_pressed = false
 }
 
 -- Function to get theme color or fallback
@@ -306,6 +307,12 @@ function create_pinned_icon(app, index)
     function icon_container:update_focus()
         if appmenu_data.current_focus.type == "pinned" and appmenu_data.current_focus.index == index then
             self:emit_signal("button::focus")
+            if appmenu_data.control_pressed then
+                gears.timer.start_new(0.01, function()
+                    icon_container.shape_border_color = theme.appmenu.button_border_sudo
+                    icon_container.bg = theme.appmenu.button_bg_sudo
+                end)
+            end
         else
             self:emit_signal("button::unfocus")
         end
@@ -321,6 +328,14 @@ function create_pinned_icon(app, index)
         appmenu_data.current_focus = {
             type = "pinned",
             index = index,
+            pin_focused = false
+        }
+        appmenu_data.wibox:emit_signal("property::current_focus")
+    end)
+    icon_container:connect_signal("mouse::leave", function()
+        appmenu_data.current_focus = {
+            type = "pinned",
+            index = nil,
             pin_focused = false
         }
         appmenu_data.wibox:emit_signal("property::current_focus")
@@ -439,9 +454,9 @@ function create_entry(app, index)
                 self.background.shape_border_color = theme.appmenu.button_border_focus
                 self.pin_button:emit_signal("button::focus")
             else
-                self.background.bg = theme.appmenu.button_bg_focus
+                self.background.bg = appmenu_data.control_pressed and theme.appmenu.button_bg_sudo or theme.appmenu.button_bg_focus
                 self.background.fg = beautiful.fg_focus
-                self.background.shape_border_color = theme.appmenu.button_border_focus
+                self.background.shape_border_color = appmenu_data.control_pressed and theme.appmenu.button_border_sudo or theme.appmenu.button_border_focus
                 self.pin_button:emit_signal("button::unfocus")
             end
         else
@@ -461,8 +476,8 @@ function create_entry(app, index)
     -- Mouse handlers
     widget.background:connect_signal("mouse::enter", function()
         appmenu_data.current_focus = {
-            type = "apps",
             index = index,
+            type = "apps",
             pin_focused = false
         }
         appmenu_data.wibox:emit_signal("property::current_focus")
@@ -471,8 +486,8 @@ function create_entry(app, index)
     widget.background:connect_signal("mouse::leave", function()
         if not widget.pin_button.visible then
             appmenu_data.current_focus = {
-                type = "apps",
                 index = nil,
+                type = "apps",
                 pin_focused = false
             }
             appmenu_data.wibox:emit_signal("property::current_focus")
@@ -691,7 +706,7 @@ function scroll_list(direction)
         if appmenu_data.current_start + appmenu_data.visible_entries <= #appmenu_data.filtered_list then
             appmenu_data.current_start = appmenu_data.current_start + 1
             -- Update focus if it's now out of view
-            if appmenu_data.current_focus.type == "apps" and 
+            if appmenu_data.current_focus.type == "apps" and appmenu_data.current_focus.index and
                appmenu_data.current_focus.index < appmenu_data.current_start then
                 appmenu_data.current_focus.index = appmenu_data.current_start
                 appmenu_data.wibox:emit_signal("property::current_focus")
@@ -702,7 +717,7 @@ function scroll_list(direction)
         if appmenu_data.current_start > 1 then
             appmenu_data.current_start = appmenu_data.current_start - 1
             -- Update focus if it's now out of view
-            if appmenu_data.current_focus.type == "apps" and 
+            if appmenu_data.current_focus.type == "apps" and appmenu_data.current_focus.index and
                appmenu_data.current_focus.index >= appmenu_data.current_start + appmenu_data.visible_entries then
                 appmenu_data.current_focus.index = appmenu_data.current_start + appmenu_data.visible_entries - 1
                 appmenu_data.wibox:emit_signal("property::current_focus")
@@ -951,9 +966,9 @@ function appmenu_init()
 	appmenu_data.keygrabber = awful.keygrabber {
 	    autostart = false,
 	    keypressed_callback = function(self, mod, key)
-	        -- Preserve focus state when Control is pressed
 	        if key == "Control_L" or key == "Control_R" then
-	            preserve_focus_state()
+	               appmenu_data.control_pressed = true
+                   appmenu_data.wibox:emit_signal("property::current_focus")
 	            return
 	        end
 
@@ -975,9 +990,9 @@ function appmenu_init()
 			execute_keybind(key, mod)
 	    end,
 	    keyreleased_callback = function(_, mod, key)
-	        -- Restore focus state when Control is released
 	        if key == "Control_L" or key == "Control_R" then
-	            restore_focus_state()
+                appmenu_data.control_pressed = false
+                appmenu_data.wibox:emit_signal("property::current_focus")
 	        end
 	    end,
 	    stop_callback = function()

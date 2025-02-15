@@ -107,7 +107,6 @@ function create_image_button(args)
     local hover_border = args.hover_border or args.border_color
     local button_size = args.button_size
     local shape_radius = args.shape_radius or dpi(6)
-    -- Support both old and new click handlers
     local on_click = args.on_click
     local on_right_click = args.on_right_click
     local on_ctrl_click = args.on_ctrl_click
