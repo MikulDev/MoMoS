@@ -229,6 +229,9 @@ mymainmenu = awful.menu({ items = {
 }
 })
 
+local launcher = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png", menu = mymainmenu})
+local notif_button = notifications.create_button()
+add_hover_cursor(launcher)
 mylauncher = wibox.widget {
 	{
 		{
@@ -236,21 +239,21 @@ mylauncher = wibox.widget {
 				{
 				    {
 				        {
-				            widget = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png",
-				            menu = mymainmenu})
+				            widget = launcher
 				        },
-				        strategy = "exact",
-				        widget = wibox.container.constraint,
+				        left = dpi(3),
+                        top = dpi(3),
+                        bottom = dpi(3),
+				        widget = wibox.container.margin,
 				    },
 				    align = "center",
 				    widget = wibox.container.place,
 				},
-				notifications.create_button(),
+                notif_button,
 				spacing = dpi(0),
 				layout = wibox.layout.fixed.horizontal
 			},
 			margins = dpi(4),
-			left = dpi(6),
 			widget = wibox.container.margin
 		},
 		shape = function(cr, width, height)

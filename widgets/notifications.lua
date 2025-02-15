@@ -585,6 +585,8 @@ function notifications.create_button()
         widget = wibox.container.background
     }
 
+    add_hover_cursor(button)
+
     -- Create the popup
     notifications.popup = awful.popup {
         widget = create_notification_list(),
