@@ -521,7 +521,7 @@ function create_notification_list(preview)
         -- Scroll up
         awful.button({}, 4, function()
             if notifications.popup.visible and scroll_state.start_idx > 1 then
-                local new_idx = math.max(1, scroll_state.start_idx - 1)
+                local new_idx = math.max(0, scroll_state.start_idx - 1)
                 scroll_to(new_idx)
             end
         end),
@@ -749,10 +749,10 @@ end)
 
 -- Function to safely update popup widget
 function scroll_to(new_start_idx)
+    scroll_state.start_idx = new_start_idx
     -- Store current preview state
     local prev_preview = notifications.current_preview
 
-    -- Create temporary invisible popup to initialize the new widget
     local temp_popup = awful.popup {
         x = notifications.popup.x,
         y = notifications.popup.y,
@@ -764,11 +764,9 @@ function scroll_to(new_start_idx)
     -- Use a timer to ensure the widget is initialized
     gears.timer.start_new(0.01, function()
         -- Update the actual popup
-        scroll_state.start_idx = new_start_idx
         notifications.popup.widget = temp_popup.widget
 
         -- Clean up temporary popup
-        temp_popup.visible = false
         temp_popup = nil
 
         -- Restore preview if needed
