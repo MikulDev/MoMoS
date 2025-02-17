@@ -206,7 +206,7 @@ function shutdown_init()
         height = dpi(160),
         bg = theme.shutdown.bg,
         border_color = theme.shutdown.border,
-        border_width = 1,
+        border_width = dpi(1),
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, dpi(16))
         end

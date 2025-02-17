@@ -33,7 +33,7 @@ theme.selected = selected
 theme.selected_dark = selected_dark
 
 local tag_shape = function(cr, width, height)
-    gears.shape.rounded_rect(cr, width, height, 4)
+    gears.shape.rounded_rect(cr, width, height, dpi(4))
 end
 
 function font_with_size(size)

@@ -37,7 +37,7 @@ appmenu_data = {
     filtered_list = {},
     pinned_apps = {}, -- Store pinned applications
     max_pinned = 8,   -- Maximum number of pinned apps
-    font = theme.font .. " " .. dpi(13),
+    font = font_with_size(13),
 	current_focus = {
         type = "pinned", -- can be "pinned", "apps", or "pin_button"
         index = nil,     -- index in the current list (for pinned or apps)
@@ -437,7 +437,7 @@ function create_entry(app, index)
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, 6)
         end,
-        shape_border_width = 1,
+        shape_border_width = dpi(1),
         shape_border_color = theme.appmenu.button_border .. "33",
         forced_height = dpi(44),
         widget = wibox.container.background,
@@ -607,7 +607,7 @@ function create_search_box()
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, dpi(15))
         end,
-        shape_border_width = 1,
+        shape_border_width = dpi(1),
         shape_border_color = theme.appmenu.button_border .. "33",
         widget = wibox.container.background
     }
@@ -945,7 +945,7 @@ function appmenu_init()
         height = dpi(672),
         bg = theme.appmenu.bg,
         border_color = theme.appmenu.border,
-        border_width = 1,
+        border_width = dpi(1),
         visible = false,
         ontop = true,
         type = "normal"

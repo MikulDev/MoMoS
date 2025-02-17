@@ -156,7 +156,7 @@ function create_image_button(args)
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, shape_radius)
         end,
-        shape_border_width = 1,
+        shape_border_width = dpi(1),
         shape_border_color = border_color,
         widget = wibox.container.background,
         id = args.id
@@ -329,7 +329,7 @@ function create_labeled_image_button(args)
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, shape_radius)
         end,
-        shape_border_width = 1,
+        shape_border_width = dpi(1),
         shape_border_color = border_color,
         widget = wibox.container.background
     }

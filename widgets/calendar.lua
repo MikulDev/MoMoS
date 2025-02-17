@@ -60,7 +60,7 @@ local function create_day_widget(text, is_current_day)
         shape = function(cr, width, height)
             gears.shape.rectangle(cr, width, height)
         end,
-        shape_border_width = 1,
+        shape_border_width = dpi(1),
         shape_border_color = border_color,
         widget = wibox.container.background
     }
@@ -190,7 +190,7 @@ function calendar.new()
         local text = string.format(
             '<span font="%s %s" color="%s">%s %d</span>',
             theme.font,
-            dpi(13),
+            13,
             theme.fg_focus,
             month_names[self.current_date.month],
             self.current_date.year
@@ -301,7 +301,7 @@ function calendar.new()
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, dpi(16))
         end,
-        border_width = 1,
+        border_width = dpi(1),
         border_color = theme.calendar.border,
         bg = theme.calendar_bg,
         widget = {

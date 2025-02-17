@@ -352,11 +352,8 @@ awful.screen.connect_for_each_screen(function(s)
     awful.button({ }, 3, function () awful.layout.inc(-1) end),
     awful.button({ }, 4, function () awful.layout.inc( 1) end),
     awful.button({ }, 5, function () awful.layout.inc(-1) end)))
-    -- Create a taglist widget
-    local tag_shape = function(cr, width, height)
-        gears.shape.rounded_rect(cr, width, height, dpi(4))
-    end
 
+    -- Create a taglist widget
    	s.mytaglist = awful.widget.taglist {
         screen  = s,
         filter  = awful.widget.taglist.filter.all,
@@ -549,10 +546,6 @@ awful.screen.connect_for_each_screen(function(s)
 	-- Create a calendar instance for this screen
     local screen_calendar = calendar.new()
     screen_calendar:attach(s.mytextclock, s)
-
-    local squircle = function(cr, width, height)
-        gears.shape.rounded_rect(cr, width, height, dpi(4))
-    end
 
     -- Create the wibox
     s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal, height = dpi(50)})

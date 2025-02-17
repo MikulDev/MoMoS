@@ -263,7 +263,7 @@ local function create_notification_widget(n)
             shape = function(cr, width, height)
                 gears.shape.rounded_rect(cr, width, height, dpi(6))
             end,
-            shape_border_width = 1,
+            shape_border_width = dpi(1),
             shape_border_color = theme.notifications.notif_border,
             id = "notif_background"
         },
@@ -334,7 +334,7 @@ function create_notification_list(preview)
                 {
                     {
                         wibox.widget.base.make_widget(),
-                        forced_width = 1,
+                        forced_width = dpi(1),
                         bg = theme.notifications.notif_border,
                         widget = wibox.container.background
                     },
