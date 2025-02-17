@@ -387,10 +387,11 @@ awful.screen.connect_for_each_screen(function(s)
                                     id     = 'text_role',
                                     widget = wibox.widget.textbox,
                                 },
-                                align = "center",
+                                halign = "center",
+                                valign = "center",
                                 widget = wibox.container.place,
                             },
-                            left = dpi(-2),
+                            left = dpi(-1),
                             widget = wibox.container.margin
                         },
                         layout = wibox.layout.fixed.horizontal,
@@ -516,7 +517,7 @@ awful.screen.connect_for_each_screen(function(s)
                             '<span foreground="%s">%%a, %%b %%d</span>',
                             theme.clock.fg
                         ),
-                        font = font_with_size(10),
+                        font = theme.textclock_date_font,
                         widget = wibox.widget.textclock
                     },
                     top = dpi(-1),
@@ -531,7 +532,7 @@ awful.screen.connect_for_each_screen(function(s)
                         '<span foreground="%s">%%I:%%M %%p</span>',
                         theme.clock.fg
                     ),
-                    font = font_with_size(12),
+                    font = theme.textclock_time_font,
                     widget = wibox.widget.textclock
                 },
                 halign = "right",

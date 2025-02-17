@@ -13,24 +13,16 @@ local naughty = require("naughty")
 
 local theme = {}
 
-light_gray  =   "#9F9F9F"
-gray        =   "#595959"
-dark_gray   =   "#252525"
-black       =   "#161616"
-pitch_black =   "#131313"
-white       =   "#ffffff"
-selected    =   "#83B3F9"
-selected_dark =   "#424D64"
-selected_extradark =  "#282F3A"
-
-theme.light_gray = light_gray
-theme.gray = gray
-theme.dark_gray = dark_gray
-theme.black = black
-theme.pitch_black = pitch_black
-theme.white = white
-theme.selected = selected
-theme.selected_dark = selected_dark
+-- Colors
+theme.light_gray  =   "#9F9F9F"
+theme.gray        =   "#595959"
+theme.dark_gray   =   "#252525"
+theme.black       =   "#161616"
+theme.pitch_black =   "#131313"
+theme.white       =   "#ffffff"
+theme.selected    =   "#83B3F9"
+theme.selected_dark =   "#424D64"
+theme.selected_extradark =  "#282F3A"
 
 local tag_shape = function(cr, width, height)
     gears.shape.rounded_rect(cr, width, height, dpi(4))
@@ -40,12 +32,17 @@ function font_with_size(size)
 	return (theme.font or "Sans") .. " " .. size
 end
 
+-- Fonts
 theme.font = "Gadugi Normal"
-theme.taglist_font  = font_with_size(13)
-theme.tasklist_font = font_with_size(11)
+theme.taglist_font  = font_with_size(12)
+theme.tasklist_font = font_with_size(10)
+theme.notification_font = font_with_size(12)
+theme.textclock_date_font = font_with_size(9)
+theme.textclock_time_font = font_with_size(11)
 
-theme.bg_normal     = pitch_black .. "da"
-theme.bg_systray    = black
+-- General
+theme.bg_normal     = theme.pitch_black .. "da"
+theme.bg_systray    = theme.black
 theme.systray_icon_spacing = dpi(8)
 theme.bg_focus      = "#535d6c"
 theme.bg_urgent     = "#ff0000"
@@ -64,44 +61,43 @@ theme.textbox_fg_selected   = theme.pitch_black
 theme.snap_border_width = 0
 theme.useless_gap   = dpi(0)
 theme.border_width  = dpi(1)
-theme.border_normal = pitch_black
-theme.border_focus  = gray
+theme.border_normal = theme.pitch_black
+theme.border_focus  = theme.gray
 theme.border_marked = "#91231c"
 
 -- Tags
-theme.taglist_bg_focus = light_gray .. "60"
-theme.taglist_fg_focus = white
-theme.taglist_bg_urgent = black .. "00"
+theme.taglist_bg_focus = theme.light_gray .. "60"
+theme.taglist_fg_focus = theme.white
+theme.taglist_bg_urgent = theme.black .. "00"
 theme.taglist_urgent = "#7591DA"
-theme.taglist_dot = white
+theme.taglist_dot = theme.white
 theme.taglist_spacing = dpi(6)
 theme.taglist_shape = tag_shape
 theme.taglist_shape_border_width = 1
-theme.taglist_shape_border_color = white .. "20"
-theme.taglist_shape_border_color_focus = white .. "40"
+theme.taglist_shape_border_color = theme.white .. "20"
+theme.taglist_shape_border_color_focus = theme.white .. "40"
 
 -- Tasks
 theme.tasklist_shape = tag_shape
 theme.tasklist_spacing = dpi(10)
-theme.tasklist_bg_focus = light_gray .. "60"
-theme.tasklist_fg_focus = white
-theme.tasklist_fg_normal = white .. "90"
-theme.tasklist_bg_normal = gray .. "40"
-theme.tasklist_bg_urgent = selected .. "80"
-theme.tasklist_fg_minimize = light_gray .. "b0"
-theme.tasklist_bg_minimize = pitch_black .. "a0"
-theme.tasklist_shape_border_color = gray .. "a0"
-theme.tasklist_shape_border_color_focus = white .. "40"
-theme.tasklist_shape_border_color_minimized = gray .. "90"
+theme.tasklist_bg_focus = theme.light_gray .. "60"
+theme.tasklist_fg_focus = theme.white
+theme.tasklist_fg_normal = theme.white .. "90"
+theme.tasklist_bg_normal = theme.gray .. "40"
+theme.tasklist_bg_urgent = theme.selected .. "80"
+theme.tasklist_fg_minimize = theme.light_gray .. "b0"
+theme.tasklist_bg_minimize = theme.pitch_black .. "a0"
+theme.tasklist_shape_border_color = theme.gray .. "a0"
+theme.tasklist_shape_border_color_focus = theme.white .. "40"
+theme.tasklist_shape_border_color_minimized = theme.gray .. "90"
 theme.tasklist_shape_border_width = 1
 
 -- Notifications
 theme.notification_icon_size = dpi(60)
-theme.notification_font = font_with_size(13)
 theme.notification_shape = tag_shape
-theme.notification_bg = black .. "b0"
-theme.notification_border_color = gray
-theme.notification_fg = white .. "b0"
+theme.notification_bg = theme.black .. "b0"
+theme.notification_border_color = theme.gray
+theme.notification_fg = theme.white .. "b0"
 theme.notification_margin = dpi(16)
 naughty.config.defaults.margin = theme.notification_margin
 

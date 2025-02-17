@@ -380,8 +380,8 @@ function create_entry(app, index)
     -- Create pin button using create_image_button
     widget.pin_button = create_image_button({
         image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
-        image_size = dpi(18),
-        padding = dpi(6),
+        image_size = dpi(16),
+        padding = dpi(8),
         opacity = 0.6,
         opacity_hover = 1.0,
         bg_color = theme.appmenu.pin_button_bg,
