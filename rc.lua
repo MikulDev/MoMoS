@@ -258,7 +258,7 @@ mylauncher = wibox.widget {
 		shape = function(cr, width, height)
 	            	gears.shape.rounded_rect(cr, width, height, dpi(6))
 		        end,
-		shape_border_width = 1,
+		shape_border_width = dpi(1),
 		shape_border_color = beautiful.border_focus .. "88",
 		bg = theme.tglauncher.bg,
 		widget = wibox.container.background
@@ -572,7 +572,7 @@ awful.screen.connect_for_each_screen(function(s)
 	        shape = function(cr, width, height)
 	            gears.shape.rounded_rect(cr, width, height, dpi(10))
 	        end,
-	        shape_border_width = 1,
+	        shape_border_width = dpi(1),
 	        shape_border_color = beautiful.border_focus .. "aa",
 	        visible = false,
 	        widget = wibox.container.background
