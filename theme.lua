@@ -41,8 +41,8 @@ function font_with_size(size)
 end
 
 theme.font = "Gadugi Normal"
-theme.taglist_font  = font_with_size(dpi(13))
-theme.tasklist_font = font_with_size(dpi(11))
+theme.taglist_font  = font_with_size(13)
+theme.tasklist_font = font_with_size(11)
 
 theme.bg_normal     = pitch_black .. "da"
 theme.bg_systray    = black
@@ -97,7 +97,7 @@ theme.tasklist_shape_border_width = 1
 
 -- Notifications
 theme.notification_icon_size = dpi(60)
-theme.notification_font = font_with_size(dpi(13))
+theme.notification_font = font_with_size(13)
 theme.notification_shape = tag_shape
 theme.notification_bg = black .. "b0"
 theme.notification_border_color = gray

@@ -41,7 +41,6 @@ shutdown_init()
 -- Config settings
 local config = require("config")
 
-
 -- {{{ Default Applications
 compositor = config.compositor
 terminal = config.terminal
@@ -355,7 +354,7 @@ awful.screen.connect_for_each_screen(function(s)
     awful.button({ }, 5, function () awful.layout.inc(-1) end)))
     -- Create a taglist widget
     local tag_shape = function(cr, width, height)
-        gears.shape.rounded_rect(cr, width, height, 4)
+        gears.shape.rounded_rect(cr, width, height, dpi(4))
     end
 
    	s.mytaglist = awful.widget.taglist {
@@ -400,7 +399,7 @@ awful.screen.connect_for_each_screen(function(s)
                         layout = wibox.layout.fixed.horizontal,
                     },
                     id     = 'background_role',
-                    widget = wibox.container.background,
+                    widget = wibox.container.background
                 },
                 strategy = "exact",
                 width = dpi(42),
@@ -520,7 +519,7 @@ awful.screen.connect_for_each_screen(function(s)
                             '<span foreground="%s">%%a, %%b %%d</span>',
                             theme.clock.fg
                         ),
-                        font = font_with_size(dpi(10)),
+                        font = font_with_size(10),
                         widget = wibox.widget.textclock
                     },
                     top = dpi(-1),
@@ -535,7 +534,7 @@ awful.screen.connect_for_each_screen(function(s)
                         '<span foreground="%s">%%I:%%M %%p</span>',
                         theme.clock.fg
                     ),
-                    font = font_with_size(dpi(12)),
+                    font = font_with_size(12),
                     widget = wibox.widget.textclock
                 },
                 halign = "right",
@@ -552,7 +551,7 @@ awful.screen.connect_for_each_screen(function(s)
     screen_calendar:attach(s.mytextclock, s)
 
     local squircle = function(cr, width, height)
-        gears.shape.rounded_rect(cr, width, height, 4)
+        gears.shape.rounded_rect(cr, width, height, dpi(4))
     end
 
     -- Create the wibox

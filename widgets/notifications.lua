@@ -200,7 +200,7 @@ local function create_notification_widget(n)
                         -- Title (now with forced width to prevent overlap)
                         {
                             markup = "<b>" .. clip_text(n.title, 30) .. "</b>",
-                            font = font_with_size(dpi(12)),
+                            font = font_with_size(12),
                             align = "left",
                             forced_height = dpi(20),
                             widget = wibox.widget.textbox,
@@ -213,7 +213,7 @@ local function create_notification_widget(n)
                     -- App class
                     {
                         text = n.app_class or "",
-                        font = font_with_size(dpi(10)),
+                        font = font_with_size(10),
                         align = "right",
                         widget = wibox.widget.textbox
                     },
@@ -224,7 +224,7 @@ local function create_notification_widget(n)
                 {
                     {
                         text = clip_text(n.text, 42),
-                        font = font_with_size(dpi(12)),
+                        font = font_with_size(12),
                         align = "left",
                         forced_height = dpi(22),
                         widget = wibox.widget.textbox,
@@ -233,7 +233,7 @@ local function create_notification_widget(n)
                     nil, -- Middle spacer
                     {
                         text = format_timestamp(n.timestamp),
-                        font = font_with_size(dpi(10)),
+                        font = font_with_size(10),
                         widget = wibox.widget.textbox
                     },
                     forced_width = config.notifications.max_width,
@@ -544,7 +544,7 @@ function notifications.create_button()
     -- Create the label
     local label = wibox.widget {
         text = "0",
-        font = font_with_size(math.floor(config.notifications.button_size * 0.75)),
+        font = font_with_size(11),
         align = 'left',
         valign = 'center',
         widget = wibox.widget.textbox
