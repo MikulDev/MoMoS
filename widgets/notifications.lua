@@ -177,76 +177,73 @@ local function create_notification_widget(n)
         close_hover = false
     end)
 
+    local app_class = wibox.widget {
+        text = n.app_class or "",
+        font = font_with_size(theme.notification_font_size - 2),
+        halign = "right",
+        valign = "top",
+        widget = wibox.widget.textbox
+    }
+
     -- Create the content with modified layout
     local content = wibox.widget {
+        -- Icon
         {
-            -- Icon
             {
-                {
-                    image = n.icon,
-                    resize = true,
-                    forced_width = config.notifications.icon_size,
-                    forced_height = config.notifications.icon_size,
-                    widget = wibox.widget.imagebox,
-                },
-                valign = "center",
-                widget = wibox.container.place
+                image = n.icon,
+                resize = true,
+                forced_width = config.notifications.icon_size,
+                forced_height = config.notifications.icon_size,
+                widget = wibox.widget.imagebox,
             },
-            -- Text content
-            {
-                -- Top row with title and app class
-                {
-                    {
-                        -- Title (now with forced width to prevent overlap)
-                        {
-                            markup = "<b>" .. clip_text(n.title, 30) .. "</b>",
-                            font = font_with_size(12),
-                            align = "left",
-                            forced_height = dpi(20),
-                            widget = wibox.widget.textbox,
-                            id = "notif_title"
-                        },
-                        forced_width = config.notifications.max_width - dpi(180), -- Reserve space for app class
-                        widget = wibox.container.constraint
-                    },
-                    nil, -- Middle spacer
-                    -- App class
-                    {
-                        text = n.app_class or "",
-                        font = font_with_size(10),
-                        align = "right",
-                        widget = wibox.widget.textbox
-                    },
-                    expand = "none",
-                    layout = wibox.layout.align.horizontal
-                },
-                -- Bottom row with message and timestamp
-                {
-                    {
-                        text = clip_text(n.text, 42),
-                        font = font_with_size(12),
-                        align = "left",
-                        forced_height = dpi(22),
-                        widget = wibox.widget.textbox,
-                        id = "notif_message"
-                    },
-                    nil, -- Middle spacer
-                    {
-                        text = format_timestamp(n.timestamp),
-                        font = font_with_size(10),
-                        widget = wibox.widget.textbox
-                    },
-                    forced_width = config.notifications.max_width,
-                    layout = wibox.layout.align.horizontal
-                },
-                spacing = dpi(-2),
-                layout = wibox.layout.fixed.vertical
-            },
-            spacing = dpi(10),
-            layout = wibox.layout.fixed.horizontal
+            valign = "center",
+            widget = wibox.container.place
         },
-        forced_width = config.notifications.max_width - dpi(20), -- Account for margins
-        widget = wibox.container.constraint
+        -- Text content
+        {
+            -- Top row with title and app class
+            {
+                nil,
+                {
+                    -- Title (now with forced width to prevent overlap)
+                    markup = "<b>" .. n.title .. "</b>",
+                    font = font_with_size(theme.notification_font_size - 1),
+                    align = "left",
+                    forced_height = dpi(theme.notification_font_size * 1.75),
+                    widget = wibox.widget.textbox,
+                    id = "notif_title"
+                },
+                app_class,
+                expand = "inside",
+                layout = wibox.layout.align.horizontal
+            },
+            -- Bottom row with message and timestamp
+            {
+                nil,
+                -- Notif text
+                {
+                    text = n.text,
+                    font = theme.notification_font,
+                    align = "left",
+                    forced_height = dpi(theme.notification_font_size * 1.75),
+                    widget = wibox.widget.textbox,
+                    id = "notif_message"
+                },
+                -- Notif timestamp
+                {
+                    text = format_timestamp(n.timestamp),
+                    font = font_with_size(theme.notification_font_size - 2),
+                    widget = wibox.widget.textbox
+                },
+                expand = "inside",
+                layout = wibox.layout.align.horizontal
+            },
+            spacing = dpi(2),
+            layout = wibox.layout.fixed.vertical,
+            forced_width = config.notifications.max_width
+        },
+        spacing = dpi(10),
+        layout = wibox.layout.fixed.horizontal
     }
 
     -- Rest of the widget creation code remains the same

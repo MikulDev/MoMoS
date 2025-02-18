@@ -34,11 +34,18 @@ end
 
 -- Fonts
 theme.font = "Gadugi Normal"
-theme.taglist_font  = font_with_size(12)
-theme.tasklist_font = font_with_size(10)
-theme.notification_font = font_with_size(12)
-theme.textclock_date_font = font_with_size(9)
-theme.textclock_time_font = font_with_size(11)
+
+theme.taglist_font_size = 12
+theme.tasklist_font_size = 10
+theme.notification_font_size = 12
+theme.textclock_date_font_size = 9
+theme.textclock_time_font_size = 11
+
+theme.taglist_font  = font_with_size(theme.taglist_font_size)
+theme.tasklist_font = font_with_size(theme.tasklist_font_size)
+theme.notification_font = font_with_size(theme.notification_font_size)
+theme.textclock_date_font = font_with_size(theme.textclock_date_font_size)
+theme.textclock_time_font = font_with_size(theme.textclock_time_font_size)
 
 -- General
 theme.bg_normal     = theme.pitch_black .. "da"
