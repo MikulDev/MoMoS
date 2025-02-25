@@ -81,6 +81,18 @@ function is_string_empty(str)
     return str == nil or str == "" or string.match(str, "^%s*$") ~= nil
 end
 
+function escape_string(str)
+    if not str then return '""' end
+
+    -- Replace backslashes first
+    str = str:gsub('\\', '\\\\')
+
+    -- Replace double quotes
+    str = str:gsub('"', '\\"')
+
+    return '"' .. str .. '"'
+end
+
 -- Makes a vertical line widget with the specified width and margin
 function create_divider(width, margin)
     return wibox.widget {

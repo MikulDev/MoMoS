@@ -108,23 +108,39 @@ end
 -- Helper for scan_desktop_files() which handles quotes in the Exec= line
 function handle_exec_quotes(str)
     if not str then return nil end
-    -- Replace escaped quotes with temporary markers
-    str = str:gsub('\\"', '§DQUOTE§')
-    str = str:gsub("\\'", '§SQUOTE§')
-    -- Remove unescaped quotes
-    str = str:gsub('"', '')
-    str = str:gsub("'", '')
-    -- Restore escaped quotes
-    str = str:gsub('§DQUOTE§', '"')
-    str = str:gsub('§SQUOTE§', "'")
+
+    -- Handle spaces in paths correctly
+    str = str:gsub('\\"([^"]+)\\"', function(path)
+        return path:gsub(" ", "\\ ")
+    end)
+
+    -- Handle escaped quotes
+    str = str:gsub('\\"', '"')
+    str = str:gsub("\\'", "'")
+
     return str
+end
+
+function process_exec_command(exec, desktop_file_path)
+    if not exec then return nil end
+
+    exec = handle_exec_quotes(exec)
+
+    -- Clean up exec command
+    exec = exec:gsub("%%[fFuU]", "") -- Remove file parameters
+    exec = exec:gsub("%%k", desktop_file_path) -- Replace %k with desktop file path
+    exec = exec:gsub("%%[A-Z]", "") -- Remove other parameters
+
+    return exec
 end
 
 -- Scans for and parses desktop entries
 function scan_desktop_files()
     local paths = {
         "/usr/share/applications/",
-        os.getenv("HOME") .. "/.local/share/applications/"
+        os.getenv("HOME") .. "/.local/share/applications/",
+        os.getenv("HOME") .. "/.local/share/flatpak/exports/share/applications/",
+        "/var/lib/flatpak/exports/share/applications/"
     }
     
     appmenu_data.desktop_entries = {}
@@ -140,28 +156,25 @@ function scan_desktop_files()
                     
                     -- Parse basic .desktop file info
                     local name = content:match("Name=([^\n]+)")
-                    -- Handle quoted exec command
                     local exec = content:match("Exec=([^\n]+)")
-                    exec = handle_exec_quotes(exec)
                     local nodisplay = content:match("NoDisplay=([^\n]+)")
                     local hidden = content:match("Hidden=([^\n]+)")
                     
                     -- Only add if it's a valid, non-hidden application
                     if name and exec and not (nodisplay == "true") and not (hidden == "true") then
-                        -- Clean up exec command
-                        exec = exec:gsub("%%[fFuU]", "")
-                        exec = exec:gsub("%%k", file)
-                        exec = exec:gsub("%%c", name)
-                        exec = exec:gsub("%%[A-Z]", "")
+                        -- Process the exec command
+                        exec = process_exec_command(exec, file)
                         
-                        -- Get icon path
-                        local icon_path = get_icon_path(content)
-                        
-                        table.insert(appmenu_data.desktop_entries, {
-                            name = name,
-                            exec = exec,
-                            icon = icon_path
-                        })
+                        if exec then
+                            -- Get icon path
+                            local icon_path = get_icon_path(content)
+
+                            table.insert(appmenu_data.desktop_entries, {
+                                name = name,
+                                exec = exec,
+                                icon = icon_path
+                            })
+                        end
                     end
                 end
             end
@@ -182,8 +195,10 @@ function save_pinned_apps()
         file:write("return {")
         for _, app in ipairs(appmenu_data.pinned_apps) do
             file:write(string.format(
-                '\n  {name = "%s", exec = "%s", icon = "%s"},',
-                app.name, app.exec, app.icon or ""
+                '\n  {name = %s, exec = %s, icon = %s},',
+                escape_string(app.name),
+                escape_string(app.exec),
+                escape_string(app.icon or "")
             ))
         end
         file:write("\n}")
@@ -193,8 +208,13 @@ end
 
 -- Load pinned apps from file
 function load_pinned_apps()
-    local success, apps = pcall(dofile, config_dir .. "persistent/pinned_apps.lua")
-    if success and type(apps) == "table" then
+    local apps = dofile(config_dir .. "persistent/pinned_apps.lua")
+    if apps and type(apps) == "table" then
+        for _, app in ipairs(apps) do
+            if app.exec then
+                app.exec = handle_exec_quotes(app.exec)
+            else return end
+        end
         appmenu_data.pinned_apps = apps
     end
 end
@@ -381,7 +401,7 @@ function create_entry(app, index)
     widget.pin_button = create_image_button({
         image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
         image_size = dpi(16),
-        padding = dpi(8),
+        padding = dpi(7),
         opacity = 0.6,
         opacity_hover = 1.0,
         bg_color = theme.appmenu.pin_button_bg,
