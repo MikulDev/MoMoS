@@ -1028,6 +1028,8 @@ function appmenu_show()
 		scan_desktop_files()
         -- Update to current screen
         appmenu_data.wibox.screen = mouse.screen
+        -- Depress control key
+        appmenu_data.control_pressed = false
 
         if client.focus then
             client.focus = nil
