@@ -111,6 +111,7 @@ end
 function create_image_button(args)
     -- Default values merged with provided args
     args = args or {}
+    local widget = args.widget
     local image_path = args.image_path
     local fallback_text = args.fallback_text or "⬡"
     local image_size = args.image_size or dpi(24)
@@ -131,7 +132,13 @@ function create_image_button(args)
     
     -- Create the image or fallback text widget
     local content_widget
-    if image_path then
+    if widget then
+        content_widget = wibox.widget {
+            widget,
+            margins = padding,
+            widget = wibox.container.margin
+        }
+    elseif image_path then
         content_widget = wibox.widget {
             {
                 image = image_path,

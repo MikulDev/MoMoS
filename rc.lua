@@ -220,15 +220,25 @@ myawesomemenu = {
     { "edit config", editor_cmd .. " " .. awesome.conffile },
     { "restart", awesome.restart },
     { "quit", function() awesome.quit() end },
-}
-
-mymainmenu = awful.menu({ items = {
-    { "awesome", myawesomemenu, beautiful.awesome_icon },
     { "open terminal", terminal }
 }
-})
 
-local launcher = awful.widget.launcher({ image = config_dir .. "theme-icons/arch_logo.png", menu = mymainmenu})
+mymainmenu = awful.menu({ items = myawesomemenu })
+
+local launcher = create_image_button({
+        image_path = config_dir .. "theme-icons/launcher_icon.png",
+        fallback_text = "M",
+        padding = 0,
+        opacity = 0.6,
+        opacity_hover = 1,
+        bg_color = "FFFFFF",
+        border_color = "FFFFFF",
+        shape_radius = 1,
+        on_click = function()
+            mymainmenu:toggle()
+        end
+    })
+--awful.widget.launcher({ image = config_dir .. "theme-icons/launcher_icon.png", menu = mymainmenu})
 local notif_button = notifications.create_button()
 add_hover_cursor(launcher)
 mylauncher = wibox.widget {
@@ -241,15 +251,15 @@ mylauncher = wibox.widget {
 				            widget = launcher
 				        },
 				        left = dpi(3),
-                        top = dpi(3),
-                        bottom = dpi(3),
+                        top = dpi(0),
+                        bottom = dpi(0),
 				        widget = wibox.container.margin,
 				    },
 				    align = "center",
 				    widget = wibox.container.place,
 				},
                 notif_button,
-				spacing = dpi(0),
+				spacing = dpi(-2),
 				layout = wibox.layout.fixed.horizontal
 			},
 			margins = dpi(4),
@@ -391,7 +401,7 @@ awful.screen.connect_for_each_screen(function(s)
                                 valign = "center",
                                 widget = wibox.container.place,
                             },
-                            left = dpi(-1),
+                            left = dpi(-2),
                             widget = wibox.container.margin
                         },
                         layout = wibox.layout.fixed.horizontal,
