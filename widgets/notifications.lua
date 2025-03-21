@@ -119,7 +119,9 @@ function select_notif_under_mouse()
 					gears.timer.start_new(0.01, function()
 						-- Hover close button
 						local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
-						if cbutton then cbutton:emit_signal("mouse::enter") end
+						if cbutton then
+						    cbutton:emit_signal("mouse::enter")
+                        end
 					end)
 				end
             end
@@ -154,6 +156,14 @@ local function create_notification_widget(n)
         id = "close_button"
     })
 
+    -- Track hovering the notification close button
+    close_button:connect_signal("mouse::enter", function()
+        close_hover = true
+    end)
+    close_button:connect_signal("mouse::leave", function()
+        close_hover = false
+    end)
+
     -- Container for close button that's initially invisible
     local close_container = wibox.widget {
         {
@@ -167,15 +177,6 @@ local function create_notification_widget(n)
         widget = wibox.container.place
     }
     close_container.visible = false
-
-    -- Track hovering the notification close button
-    close_hover = false
-    close_button:connect_signal("mouse::enter", function()
-        close_hover = true
-    end)
-    close_button:connect_signal("mouse::leave", function()
-        close_hover = false
-    end)
 
     local app_class = wibox.widget {
         text = n.app_class or "",
