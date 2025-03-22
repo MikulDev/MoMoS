@@ -1,4 +1,5 @@
-# mOmOS
+<p align="center"><img src="https://imgur.com/H03TU09.png" width=250></p>
+
 A lightweight tiling window manager with modern creature comforts and style, based on Awesome WM.
 
 ## Features
