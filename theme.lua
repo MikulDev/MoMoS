@@ -177,6 +177,10 @@ theme.tglauncher.bg = theme.black .. "88"
 -- Clock
 theme.clock = {}
 theme.clock.fg = theme.white .. "aa"
+theme.clock.button_bg = theme.dark_gray .. "00"
+theme.clock.button_bg_focus = theme.gray .. "55"
+theme.clock.button_border = theme.light_gray .. "00"
+theme.clock.button_border_focus = theme.white .. "44"
 
 -- There are other variable sets
 -- overriding the default one when

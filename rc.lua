@@ -37,6 +37,7 @@ local shutdown = load_widget("shutdown")
 local notifications = load_widget("notifications")
 appmenu_init()
 shutdown_init()
+calendar_init()
 
 -- Config settings
 local config = require("config")
@@ -518,45 +519,53 @@ awful.screen.connect_for_each_screen(function(s)
     }
 
 	-- Create a textclock widget
-	s.mytextclock = wibox.widget {
-        {
+    s.mytextclock = create_image_button({
+        widget = wibox.widget {
             {
                 {
                     {
+                        {
+                            format = string.format(
+                                '<span foreground="%s">%%a, %%b %%d</span>',
+                                theme.clock.fg
+                            ),
+                            font = theme.textclock_date_font,
+                            widget = wibox.widget.textclock
+                        },
+                        top = dpi(-1),
+                        widget = wibox.container.margin
+                    },
+                    halign = "right",
+                    widget = wibox.container.place,
+                },
+                {
+                    {
                         format = string.format(
-                            '<span foreground="%s">%%a, %%b %%d</span>',
+                            '<span foreground="%s">%%I:%%M %%p</span>',
                             theme.clock.fg
                         ),
-                        font = theme.textclock_date_font,
+                        font = theme.textclock_time_font,
                         widget = wibox.widget.textclock
                     },
-                    top = dpi(-1),
-                    widget = wibox.container.margin
+                    halign = "right",
+                    widget = wibox.container.place,
                 },
-                halign = "right",
-                widget = wibox.container.place,
+                layout = wibox.layout.align.vertical
             },
-            {
-                {
-                    format = string.format(
-                        '<span foreground="%s">%%I:%%M %%p</span>',
-                        theme.clock.fg
-                    ),
-                    font = theme.textclock_time_font,
-                    widget = wibox.widget.textclock
-                },
-                halign = "right",
-                widget = wibox.container.place,
-            },
-            layout = wibox.layout.align.vertical
+            left = dpi(3),
+            right = dpi(3),
+            widget = wibox.container.margin
         },
-        align = "center",
-        widget = wibox.container.place,
-    }
-
-	-- Create a calendar instance for this screen
-    local screen_calendar = calendar.new()
-    screen_calendar:attach(s.mytextclock, s)
+        padding = dpi(4),
+        bg_color = theme.clock.button_bg,
+        border_color = theme.clock.button_border,
+        hover_bg = theme.clock.button_bg_focus,
+        hover_border = theme.clock.button_border_focus,
+        shape_radius = dpi(4),
+        on_click = function()
+            calendar.toggle()
+        end
+    })
 
     -- Create the wibox
     s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal, height = dpi(50)})
@@ -639,9 +648,13 @@ awful.screen.connect_for_each_screen(function(s)
             },
             make_spacer(dpi(12)),
             create_divider(1, dpi(8)),
-            make_spacer(dpi(12)),
-            s.mytextclock,  -- Use the screen-specific textclock
-            make_spacer(dpi(12)),
+            make_spacer(dpi(2)),
+            {
+                s.mytextclock,
+                margins = dpi(3),
+                widget = wibox.container.margin
+            },
+            make_spacer(dpi(2)),
             create_divider(dpi(1), dpi(4)),
         },
     })

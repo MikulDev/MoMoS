@@ -16,6 +16,28 @@ local calendar_icons = {
     right_arrow = icon_dir .. "right_arrow.png"
 }
 
+-- Create weekday headers
+local weekdays = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
+local weekday_widgets = {}
+for _, day in ipairs(weekdays) do
+    local weekday = wibox.widget {
+        {
+            markup = string.format(
+                '<span font="%s" color="%s">%s</span>',
+                font_with_size(dpi(12)),
+                theme.fg_focus .. "aa",
+                day
+            ),
+            align = 'center',
+            valign = 'center',
+            widget = wibox.widget.textbox
+        },
+        margins = dpi(8),
+        widget = wibox.container.margin
+    }
+    table.insert(weekday_widgets, weekday)
+end
+
 -- Calendar helper functions
 local function get_days_in_month(month, year)
     local days_in_month = {31,28,31,30,31,30,31,31,30,31,30,31}
@@ -52,7 +74,10 @@ local function create_day_widget(text, is_current_day)
                 valign = 'center',
                 widget = wibox.widget.textbox
             },
-            margins = dpi(8),
+            top = dpi(8),
+            bottom = dpi(8),
+            left = dpi(12),
+            right = dpi(12),
             widget = wibox.container.margin
         },
         bg = bg_color,
@@ -87,50 +112,140 @@ end
 -- Create custom calendar widget
 local calendar = {}
 
-function calendar.new()
-    local cal = {}
-    
+-- Functions to change months
+function calendar.next_month()
+    local month = calendar.current_date.month + 1
+    local year = calendar.current_date.year
+
+    if month > 12 then
+        month = 1
+        year = year + 1
+    end
+
+    calendar.current_date = {
+        year = year,
+        month = month,
+        day = 1  -- Reset to first day of month
+    }
+
+    calendar.update_header()
+    calendar.update_grid()
+end
+
+function calendar.prev_month()
+    local month = calendar.current_date.month - 1
+    local year = calendar.current_date.year
+
+    if month < 1 then
+        month = 12
+        year = year - 1
+    end
+
+    calendar.current_date = {
+        year = year,
+        month = month,
+        day = 1  -- Reset to first day of month
+    }
+
+    calendar.update_header()
+    calendar.update_grid()
+end
+
+-- Create month/year header
+function calendar.update_header()
+    local month_names = {"January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"}
+
+    local text = string.format(
+        '<span font="%s %s" color="%s">%s %d</span>',
+        theme.font,
+        13,
+        theme.fg_focus,
+        month_names[calendar.current_date.month],
+        calendar.current_date.year
+    )
+
+    -- Update the text in the middle widget
+    local month_text = calendar.header_widget:get_children_by_id("month_text")[1]
+    month_text.markup = text
+end
+
+-- Update calendar grid
+function calendar.update_grid()
+    local current_date = os.date("*t")
+    local days_in_month = get_days_in_month(calendar.current_date.month, calendar.current_date.year)
+    local first_day = get_first_day_of_month(calendar.current_date.month, calendar.current_date.year)
+    -- Remove this line that was causing the offset:
+    -- first_day = first_day == 1 and 7 or first_day - 1
+
+    -- Calculate number of rows needed
+    local num_rows = math.ceil((days_in_month + first_day - 1) / 7)
+
+    -- Clear existing widgets
+    calendar.days_grid:reset()
+
+    -- Add weekday headers
+    for i, widget in ipairs(weekday_widgets) do
+    calendar.days_grid:add(widget)
+    end
+
+    -- Add days of the month
+    local day_number = 1
+
+    -- Fill in empty cells before the first day
+    for i = 1, first_day - 1 do
+    calendar.days_grid:add(wibox.widget.base.empty_widget())
+    end
+
+    -- Get real current date for highlighting
+    local real_current_date = os.date("*t")
+    local is_current_month = real_current_date.month == calendar.current_date.month
+    and real_current_date.year == calendar.current_date.year
+
+    -- Then add the days of the month
+    for day = 1, days_in_month do
+    local is_current_day = is_current_month and day == real_current_date.day
+    calendar.days_grid:add(create_day_widget(day, is_current_day))
+    end
+
+    -- Fill remaining cells to complete the grid
+    local total_cells = (num_rows + 1) * 7  -- +1 for header row
+    local remaining = total_cells - (days_in_month + first_day - 1) - 7  -- -7 for header row
+    for i = 1, remaining do
+    calendar.days_grid:add(wibox.widget.base.empty_widget())
+    end
+end
+
+function calendar.toggle()
+    if calendar.popup.visible then
+        calendar.popup.visible = false
+    else
+        -- Update calendar data
+        calendar.current_date = os.date("*t")
+        calendar.update_header()
+        calendar.update_grid()
+
+        -- Show the popup
+        calendar.popup.screen = calendar.screen
+        calendar.popup.visible = true
+
+        -- Position after a slight delay to ensure rendering
+        gears.timer.start_new(0.01, function()
+            -- Calculate position relative to the screen's geometry
+            local widget_screen = mouse.screen
+            if not widget_screen then return false end
+
+            calendar.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - calendar.popup.width - dpi(10)
+            calendar.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
+            return false
+        end)
+    end
+end
+
+function calendar_init()
+
     -- Store current date
-    cal.current_date = os.date("*t")
-    
-    -- Functions to change months
-    function cal:next_month()
-        local month = self.current_date.month + 1
-        local year = self.current_date.year
-        
-        if month > 12 then
-            month = 1
-            year = year + 1
-        end
-        
-        self.current_date = {
-            year = year,
-            month = month,
-            day = 1  -- Reset to first day of month
-        }
-        
-        self:update_header()
-        self:update_grid()
-    end
-    
-    function cal:prev_month()
-        local month = self.current_date.month - 1
-        local year = self.current_date.year
-        
-        if month < 1 then
-            month = 12
-            year = year - 1
-        end
-        
-        self.current_date = {
-            year = year,
-            month = month,
-            day = 1  -- Reset to first day of month
-        }
-        
-        self:update_header()
-        self:update_grid()
-    end
+    calendar.current_date = os.date("*t")
 
 	-- Create navigation buttons
     local prev_button = create_image_button({
@@ -145,7 +260,7 @@ function calendar.new()
 	    hover_border = theme.calendar.button_border_focus,
 	    shape_radius = dpi(6),
 	    on_click = function() 
-	        cal:prev_month()
+	        calendar.prev_month()
 	    end
 	})
 	
@@ -161,12 +276,12 @@ function calendar.new()
 	    hover_border = theme.calendar.button_border_focus,
 	    shape_radius = dpi(6),
 	    on_click = function() 
-	        cal:next_month()
+	        calendar.next_month()
 	    end
 	})
 
 	-- Create header widget with navigation buttons
-    cal.header_widget = wibox.widget {
+    calendar.header_widget = wibox.widget {
         {
             prev_button,
             {
@@ -181,111 +296,24 @@ function calendar.new()
         },
         widget = wibox.container.background
     }
-    
-    -- Create month/year header
-    function cal:update_header()
-        local month_names = {"January", "February", "March", "April", "May", "June",
-                           "July", "August", "September", "October", "November", "December"}
-        
-        local text = string.format(
-            '<span font="%s %s" color="%s">%s %d</span>',
-            theme.font,
-            13,
-            theme.fg_focus,
-            month_names[self.current_date.month],
-            self.current_date.year
-        )
-        
-        -- Update the text in the middle widget
-        local month_text = cal.header_widget:get_children_by_id("month_text")[1]
-        month_text.markup = text
-    end
-
-    -- Create weekday headers
-    local weekdays = {"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
-    local weekday_widgets = {}
-    for _, day in ipairs(weekdays) do
-        local weekday = wibox.widget {
-            {
-                markup = string.format(
-                    '<span font="%s" color="%s">%s</span>',
-                    theme.font,
-                    theme.fg_focus .. "aa",
-                    day
-                ),
-                align = 'center',
-                valign = 'center',
-                widget = wibox.widget.textbox
-            },
-            margins = dpi(8),
-            widget = wibox.container.margin
-        }
-        table.insert(weekday_widgets, weekday)
-    end
 
     -- Create grid for days
-    cal.days_grid = wibox.widget {
+    calendar.days_grid = wibox.widget {
         spacing = dpi(4),
         forced_num_cols = 7,
         layout = wibox.layout.grid
     }
 
-    -- Update calendar grid
-    function cal:update_grid()
-	    local current_date = os.date("*t")
-	    local days_in_month = get_days_in_month(self.current_date.month, self.current_date.year)
-	    local first_day = get_first_day_of_month(self.current_date.month, self.current_date.year)
-	    -- Remove this line that was causing the offset:
-	    -- first_day = first_day == 1 and 7 or first_day - 1
-	
-	    -- Calculate number of rows needed
-	    local num_rows = math.ceil((days_in_month + first_day - 1) / 7)
-	
-	    -- Clear existing widgets
-	    cal.days_grid:reset()
-	
-	    -- Add weekday headers
-	    for i, widget in ipairs(weekday_widgets) do
-	        cal.days_grid:add(widget)
-	    end
-	
-	    -- Add days of the month
-	    local day_number = 1
-	    
-	    -- Fill in empty cells before the first day
-	    for i = 1, first_day - 1 do
-	        cal.days_grid:add(wibox.widget.base.empty_widget())
-	    end
-	    
-	    -- Get real current date for highlighting
-	    local real_current_date = os.date("*t")
-	    local is_current_month = real_current_date.month == self.current_date.month 
-	        and real_current_date.year == self.current_date.year
-	
-	    -- Then add the days of the month
-	    for day = 1, days_in_month do
-	        local is_current_day = is_current_month and day == real_current_date.day
-	        cal.days_grid:add(create_day_widget(day, is_current_day))
-	    end
-	    
-	    -- Fill remaining cells to complete the grid
-	    local total_cells = (num_rows + 1) * 7  -- +1 for header row
-	    local remaining = total_cells - (days_in_month + first_day - 1) - 7  -- -7 for header row
-	    for i = 1, remaining do
-	        cal.days_grid:add(wibox.widget.base.empty_widget())
-	    end
-	end
-
     -- Create the final layout
-    cal.widget = wibox.widget {
+    calendar.widget = wibox.widget {
         {
             {
-                cal.header_widget,
+                calendar.header_widget,
                 margins = dpi(10),
                 widget = wibox.container.margin
             },
             {
-                cal.days_grid,
+                calendar.days_grid,
                 margins = dpi(10),
                 widget = wibox.container.margin
             },
@@ -295,7 +323,7 @@ function calendar.new()
     }
 
     -- Create the popup window
-    cal.popup = awful.popup {
+    calendar.popup = awful.popup {
         ontop = true,
         visible = false,
         shape = function(cr, width, height)
@@ -305,92 +333,21 @@ function calendar.new()
         border_color = theme.calendar.border,
         bg = theme.calendar_bg,
         widget = {
-            cal.widget,
+            calendar.widget,
             margins = dpi(2),
             widget = wibox.container.margin
         }
     }
 
+    calendar.popup:connect_signal("mouse::leave", function()
+        calendar.popup.visible = false
+    end)
+
     -- Update everything
-    cal:update_header()
-    cal:update_grid()
+    calendar.update_header()
+    calendar.update_grid()
 
-    -- Attach to a widget
-    function cal:attach(widget, screen)
-        -- Pre-render the calendar once to get correct sizes
-	    cal:update_header()
-	    cal:update_grid()
-	    
-	    local function position_calendar()
-	        -- Use the stored screen reference
-	        local widget_screen = screen
-	        if not widget_screen then return end
-	        
-	        -- Calculate position relative to the screen's geometry
-	        cal.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - cal.popup.width - dpi(10)
-	        cal.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
-	    end
-	
-	    local function show_calendar()
-	        cal.current_date = os.date("*t")
-	        cal:update_header()
-	        cal:update_grid()
-	        
-	        if not cal.popup.visible then
-	            cal.popup.screen = screen
-	            cal.popup.visible = true
-	            gears.timer.start_new(0.01, function()
-	                position_calendar()
-	                return false
-	            end)
-	        end
-	    end
-		
-		local function hide_calendar()
-            if cal.popup.visible then
-                cal.popup.visible = false
-            end
-        end
-        
-        widget:connect_signal("mouse::enter", function()
-            show_calendar()
-            hovered = true
-        end)
-        
-        widget:connect_signal("mouse::leave", function()
-            hovered = false
-            gears.timer.start_new(0.1, function()
-                if not hovered then
-                    hide_calendar()   
-                end         	
-                return false
-            end)
-        end)
-        
-        cal.popup:connect_signal("mouse::enter", function() 
-            hovered = true 
-        end)
-        
-        cal.popup:connect_signal("mouse::leave", function() 
-            hovered = false
-            gears.timer.start_new(0.1, function()
-                if not hovered then
-                    hovered = false 
-                    hide_calendar() 
-                end         	
-                return false
-            end)
-        end)
-        
-        -- Add right-click handler
-        cal.popup:connect_signal("button::press", function(_, _, _, button)
-            if button == 3 then  -- Right click
-                hide_calendar()
-            end
-        end)
-    end
-
-    return cal
+    return calendar
 end
 
 return calendar
