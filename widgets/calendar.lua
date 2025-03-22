@@ -110,7 +110,9 @@ local function create_day_widget(text, is_current_day)
 end
 
 -- Create custom calendar widget
-local calendar = {}
+local calendar = {
+    hovered = false
+}
 
 -- Functions to change months
 function calendar.next_month()
@@ -224,10 +226,9 @@ function calendar.toggle()
         calendar.current_date = os.date("*t")
         calendar.update_header()
         calendar.update_grid()
-
-        -- Show the popup
-        calendar.popup.screen = calendar.screen
+        -- Render the calendar for proper sizing
         calendar.popup.visible = true
+        calendar.popup.visible = false
 
         -- Position after a slight delay to ensure rendering
         gears.timer.start_new(0.01, function()
@@ -237,6 +238,7 @@ function calendar.toggle()
 
             calendar.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - calendar.popup.width - dpi(10)
             calendar.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
+            calendar.popup.visible = true
             return false
         end)
     end
@@ -331,7 +333,7 @@ function calendar_init()
         end,
         border_width = dpi(1),
         border_color = theme.calendar.border,
-        bg = theme.calendar_bg,
+        bg = theme.calendar.bg,
         widget = {
             calendar.widget,
             margins = dpi(2),
@@ -339,8 +341,18 @@ function calendar_init()
         }
     }
 
+    calendar.popup:connect_signal("mouse::enter", function()
+        calendar.hovered = true
+    end)
+
     calendar.popup:connect_signal("mouse::leave", function()
-        calendar.popup.visible = false
+        calendar.hovered = false
+        gears.timer.start_new(0.1, function()
+            if not calendar.hovered then
+                calendar.popup.visible = false
+            end
+            return false
+        end)
     end)
 
     -- Update everything
@@ -348,6 +360,22 @@ function calendar_init()
     calendar.update_grid()
 
     return calendar
+end
+
+function calendar.attach(widget)
+    widget:connect_signal("mouse::enter", function()
+        calendar.hovered = true
+    end)
+
+    widget:connect_signal("mouse::leave", function()
+        calendar.hovered = false
+        gears.timer.start_new(0.1, function()
+            if not calendar.hovered then
+                calendar.popup.visible = false
+            end
+            return false
+        end)
+    end)
 end
 
 return calendar

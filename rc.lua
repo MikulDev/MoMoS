@@ -552,11 +552,11 @@ awful.screen.connect_for_each_screen(function(s)
                 },
                 layout = wibox.layout.align.vertical
             },
-            left = dpi(3),
-            right = dpi(3),
+            left = dpi(5),
+            right = dpi(5),
             widget = wibox.container.margin
         },
-        padding = dpi(4),
+        padding = dpi(3),
         bg_color = theme.clock.button_bg,
         border_color = theme.clock.button_border,
         hover_bg = theme.clock.button_bg_focus,
@@ -566,6 +566,8 @@ awful.screen.connect_for_each_screen(function(s)
             calendar.toggle()
         end
     })
+
+    calendar.attach(s.mytextclock)
 
     -- Create the wibox
     s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal, height = dpi(50)})
@@ -648,13 +650,14 @@ awful.screen.connect_for_each_screen(function(s)
             },
             make_spacer(dpi(12)),
             create_divider(1, dpi(8)),
-            make_spacer(dpi(2)),
+            make_spacer(dpi(4)),
             {
                 s.mytextclock,
-                margins = dpi(3),
+                top = dpi(4),
+                bottom = dpi(4),
                 widget = wibox.container.margin
             },
-            make_spacer(dpi(2)),
+            make_spacer(dpi(4)),
             create_divider(dpi(1), dpi(4)),
         },
     })
