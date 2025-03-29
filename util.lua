@@ -245,8 +245,9 @@ function create_image_button(args)
 
     -- Add methods to update button properties
     function button:update_image(new_image)
-        if content_widget.widget == wibox.widget.imagebox then
-            content_widget.widget.image = new_image
+        local imagebox = content_widget:get_children_by_id('icon')[1]
+        if imagebox then
+            imagebox.image = new_image
         end
     end
 
@@ -433,7 +434,7 @@ function add_hover_cursor(widget)
     }
 
     widget:connect_signal("mouse::enter", function(w)
-        if w == widget then
+        if w == widget and mouse.current_wibox then
             local wibox = mouse.current_wibox
             widget_state.old_cursor = wibox.cursor
             widget_state.old_wibox = wibox
