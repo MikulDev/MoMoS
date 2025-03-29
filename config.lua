@@ -30,6 +30,10 @@ config.notifications = {
     icon_size = dpi(32),   -- Size of icons in the notification list entries
     button_size = dpi(16), -- Size of the notification button in wibar
     entry_height = dpi(60), -- Height of each notification entry
+    dont_store = {
+        "spotify",
+        ""
+    }
 }
 
 config.music_players = {

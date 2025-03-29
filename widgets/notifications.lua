@@ -664,6 +664,11 @@ naughty.connect_signal("destroyed", update_count)
 
 -- Add notification to map upon display
 naughty.connect_signal("added", function(n)
+    for _, entry in ipairs(config.notifications.dont_store) do
+        if string.find(n.title:lower(), entry:lower()) then
+            return
+        end
+    end
     add_notification(n)
 end)
 
