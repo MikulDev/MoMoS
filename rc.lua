@@ -615,14 +615,9 @@ awful.screen.connect_for_each_screen(function(s)
 
     if s == screen.primary then
         music_widget = wibox.widget {
-            {
-                music.create(),
-                top = dpi(2),
-                bottom = dpi(2),
-                widget = wibox.container.margin
-            },
-            make_spacer(dpi(6)),
+            music.create(),
             create_divider(dpi(1), dpi(8)),
+            make_spacer(dpi(2)),
             widget = wibox.layout.align.horizontal
         }
     else

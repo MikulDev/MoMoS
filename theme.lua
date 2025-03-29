@@ -176,7 +176,7 @@ theme.tglauncher.bg = theme.black .. "88"
 
 -- Clock
 theme.clock = {}
-theme.clock.fg = theme.white .. "aa"
+theme.clock.fg = theme.white .. "bb"
 theme.clock.button_bg = theme.dark_gray .. "00"
 theme.clock.button_bg_focus = theme.gray .. "55"
 theme.clock.button_border = theme.light_gray .. "00"
@@ -190,9 +190,9 @@ theme.music.button_bg = theme.dark_gray .. "00"
 theme.music.button_fg = theme.white
 theme.music.border = theme.gray .. "00"
 theme.music.progress_bg = theme.gray
-theme.music.progress_fg = theme.white
+theme.music.progress_fg = theme.white .. "bb"
 theme.music.title_fg = theme.white .. "ff"
-theme.music.artist_fg = theme.light_gray .. "ff"
+theme.music.artist_fg = theme.white .. "aa"
 theme.music.time_fg = theme.white .. "aa"
 
 -- There are other variable sets

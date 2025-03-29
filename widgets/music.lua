@@ -295,8 +295,8 @@ function music_widget.create()
             left = dpi(1),
             widget = wibox.container.margin
         },
-        forced_width = dpi(40),
-        forced_height = dpi(40),
+        forced_width = dpi(36),
+        forced_height = dpi(36),
         widget = wibox.container.constraint
     }
 
@@ -306,7 +306,7 @@ function music_widget.create()
         markup = string.format('<span color="%s">%s</span>',
             beautiful.music.title_fg or beautiful.music.fg,
             "Not playing"),
-        font = font_with_size(dpi(13)),
+        font = font_with_size(dpi(12)),
         widget = wibox.widget.textbox
     }
 
@@ -328,17 +328,13 @@ function music_widget.create()
     -- Create track info container
     local track_info = wibox.widget {
         {
-            {
-                title_widget,
-                artist_widget,
-                layout = wibox.layout.fixed.vertical,
-                spacing = dpi(-1)
-            },
-            width = dpi(150),
-            widget = wibox.container.constraint
+            title_widget,
+            artist_widget,
+            layout = wibox.layout.fixed.vertical,
+            spacing = dpi(4)
         },
-        top = dpi(-2),
-        widget = wibox.container.margin
+        width = dpi(150),
+        widget = wibox.container.constraint
     }
 
     -- Create progress bar
@@ -407,7 +403,7 @@ function music_widget.create()
             {
                 progress_bar,
                 right = dpi(4),
-                bottom = dpi(2),
+                top = dpi(1),
                 widget = wibox.container.margin
             },
             spacing = dpi(0),
@@ -423,12 +419,12 @@ function music_widget.create()
             {
                 {
                     album_art,
-                    right = dpi(8),
+                    right = dpi(10),
                     widget = wibox.container.margin
                 },
                 {
                     track_info,
-                    right = dpi(8),
+                    right = dpi(10),
                     widget = wibox.container.margin
                 },
                 control_row,
