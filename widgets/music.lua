@@ -16,11 +16,6 @@ local config = require("config")
 awful.spawn.with_shell("rm -r " .. config_dir .. "album_art_cache")
 awful.spawn.with_shell("mkdir -p " .. config_dir .. "album_art_cache")
 
--- Set default player priorities if not defined in config
-if not config.music_players then
-    config.music_players = {"spotify", "firefox", "chromium", "mpv"}
-end
-
 local music_widget = {
     time = 0,
     last_time = 0,
@@ -328,13 +323,21 @@ function music_widget.create()
     -- Create track info container
     local track_info = wibox.widget {
         {
-            title_widget,
-            artist_widget,
-            layout = wibox.layout.fixed.vertical,
-            spacing = dpi(4)
+            {
+                {
+                    title_widget,
+                    height = dpi(18),
+                    widget = wibox.container.constraint
+                },
+                artist_widget,
+                layout = wibox.layout.fixed.vertical,
+                spacing = dpi(2)
+            },
+            width = dpi(150),
+            widget = wibox.container.constraint
         },
-        width = dpi(150),
-        widget = wibox.container.constraint
+        top = dpi(2),
+        widget = wibox.container.margin
     }
 
     -- Create progress bar

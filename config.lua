@@ -14,14 +14,6 @@ config.terminal = "alacritty"
 config.editor = os.getenv("EDITOR") or "gedit"
 config.web_browser = "firefox"
 config.bluetooth = config.terminal .. " -e bluetuith"
-config.music_players = {
-    "spotify",
-    "firefox",
-    "chromium",
-    "mpv",
-    "vlc"
-}
-config.music_widget_timeout = 60
 
 -- }}}
 
@@ -39,6 +31,15 @@ config.notifications = {
     button_size = dpi(16), -- Size of the notification button in wibar
     entry_height = dpi(60), -- Height of each notification entry
 }
+
+config.music_players = {
+    "spotify",
+    "mpv",
+    "vlc",
+    "firefox",
+    "chromium"
+}
+config.music_widget_timeout = 60
 
 -- }}}
 
