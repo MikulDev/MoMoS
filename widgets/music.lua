@@ -25,22 +25,18 @@ local music_widget = {
     time = 0,
     last_time = 0,
     current_player = nil,
-    metadata_cache = {},
-    last_update = 0,
-    update_interval = 1,  -- Full metadata update every 1 second
-    position_update_interval = 0.5, -- Increased from 0.2 to 0.5 seconds
-    player_check_interval = 5,  -- Check for new players every 5 seconds
-    last_player_check = 0,
-    paused_since = os.time(),
+    current_title = "",
+    current_artist = "",
+    current_length = 0,
+    current_art_path = nil,
     visible = true,
-    -- New fields for improved stability
-    last_reset = os.time(),
-    reset_interval = 120, -- Reset cache every 2 minutes
+    paused_since = os.time(),
+    needs_update = true,
+    update_in_progress = false,
     last_successful_update = os.time(),
-    max_unresponsive_time = 30, -- Consider widget frozen after 30 seconds without update
-    last_title = "", -- Track the last title to detect song changes
-    max_cache_age = 60, -- Maximum cache age in seconds
-    debug_mode = false -- Set to true to enable debug notifications
+    max_unresponsive_time = 30,
+    current_status = "",
+    debug_mode = false
 }
 
 -- Debug function
@@ -54,82 +50,80 @@ local function debug_print(msg)
     end
 end
 
--- Single combined timer for all update operations
-local timer = gears.timer({
-    timeout = music_widget.position_update_interval,
+-- Timers for position updates and title checks
+local position_timer = gears.timer({
+    timeout = 0.5,  -- Position updates every 0.5 seconds
+    autostart = true
+})
+
+local title_check_timer = gears.timer({
+    timeout = 0.2,  -- Title checks every 0.2 seconds
     autostart = true
 })
 
 -- Default album art when none is available
 local default_art = icon_dir .. "music_default.png"
 
--- Get prioritized player, using caching to avoid frequent checks
-local function get_prioritized_player()
-    local current_time = os.time()
+-- Find the best player to use based on priorities
+local function get_prioritized_player(callback)
+    -- Get the list of active players
+    awful.spawn.easy_async_with_shell("playerctl --list-all 2>/dev/null", function(stdout, stderr, reason, exit_code)
+        if exit_code ~= 0 or stdout == "" then
+            callback(nil)
+            return
+        end
 
-    -- Only check for new players periodically to reduce overhead
-    if (current_time - music_widget.last_player_check) >= music_widget.player_check_interval then
-        -- Get the list of active players
-        awful.spawn.easy_async_with_shell("playerctl --list-all 2>/dev/null", function(stdout, stderr, reason, exit_code)
-            if exit_code ~= 0 or stdout == "" then
-                music_widget.current_player = nil
-                return
-            end
+        -- Convert stdout to a table of player names
+        local players = {}
+        for player in string.gmatch(stdout, "[^\r\n]+") do
+            table.insert(players, player)
+        end
 
-            -- Convert stdout to a table of player names
-            local players = {}
-            for player in string.gmatch(stdout, "[^\r\n]+") do
-                table.insert(players, player)
-            end
-
-            -- Check if the current player is still in the list
-            local current_player_active = false
-            if music_widget.current_player then
-                for _, active in ipairs(players) do
-                    if active == music_widget.current_player then
-                        current_player_active = true
-                        break
-                    end
+        -- Check if the current player is still in the list
+        local current_player_active = false
+        if music_widget.current_player then
+            for _, active in ipairs(players) do
+                if active == music_widget.current_player then
+                    current_player_active = true
+                    break
                 end
             end
+        end
 
-            -- If current player is still active, keep using it
-            if current_player_active then
-                return
-            end
+        -- If current player is still active, keep using it
+        if current_player_active then
+            callback(music_widget.current_player)
+            return
+        end
 
-            -- Otherwise, find a new player based on priorities
-            local player_to_use = nil
+        -- Otherwise, find a new player based on priorities
+        local player_to_use = nil
 
-            -- Check if any of the preferred players are active
-            for _, preferred in ipairs(config.music_players) do
-                for _, active in ipairs(players) do
-                    if string.find(active:lower(), preferred:lower()) then
-                        player_to_use = active
-                        break
-                    end
+        -- Check if any of the preferred players are active
+        for _, preferred in ipairs(config.music_players) do
+            for _, active in ipairs(players) do
+                if string.find(active:lower(), preferred:lower()) then
+                    player_to_use = active
+                    break
                 end
-                if player_to_use then break end
             end
+            if player_to_use then break end
+        end
 
-            -- If no match found, use the first player
-            if not player_to_use and #players > 0 then
-                player_to_use = players[1]
-            end
+        -- If no match found, use the first player
+        if not player_to_use and #players > 0 then
+            player_to_use = players[1]
+        end
 
-            -- If the player has changed, clear the metadata cache
-            if player_to_use ~= music_widget.current_player then
-                music_widget.metadata_cache = {}
-                debug_print("Player changed to: " .. (player_to_use or "nil"))
-            end
+        -- If the player has changed, force an update
+        if player_to_use ~= music_widget.current_player then
+            music_widget.needs_update = true
+            debug_print("Player changed to: " .. (player_to_use or "nil"))
+        end
 
-            music_widget.current_player = player_to_use
-        end)
-
-        music_widget.last_player_check = current_time
-    end
-
-    return music_widget.current_player
+        music_widget.current_player = player_to_use
+        callback(player_to_use)
+    end)
 end
 
 -- Function to create a playerctl command with the correct player
@@ -142,30 +136,67 @@ local function playerctl_cmd(command)
     end
 end
 
+function music_widget.play_pause()
+    awful.spawn(playerctl_cmd("play-pause"))
+    schedule_update()
+end
+
+function music_widget.next()
+    awful.spawn(playerctl_cmd("next"))
+    schedule_update()
+end
+
+function music_widget.prev()
+    awful.spawn(playerctl_cmd("previous"))
+    schedule_update()
+end
+
+function schedule_update()
+    gears.timer.start_new(0.05, function()
+        perform_full_update()
+        return false
+    end)
+end
+
 -- Get a single metadata value with error handling and async operation
 local function get_metadata_value(key, default_value, callback)
-    -- Use cached value if available, not expired, and not too old
-    local current_time = os.time()
-    if music_widget.metadata_cache[key] and
-       (current_time - music_widget.metadata_cache[key].timestamp) < music_widget.update_interval and
-       (current_time - music_widget.metadata_cache[key].timestamp) < music_widget.max_cache_age then
-        callback(music_widget.metadata_cache[key].value)
-        return
-    end
-
-    -- Otherwise, get the value and cache it asynchronously
     local cmd = playerctl_cmd("metadata " .. key)
-
     awful.spawn.easy_async_with_shell(cmd .. " 2>/dev/null", function(stdout, stderr, reason, exit_code)
         local value = stdout and stdout:match("^(.-)%s*$") or default_value
-
-        music_widget.metadata_cache[key] = {
-            value = value,
-            timestamp = current_time
-        }
-
         callback(value)
     end)
+end
+
+-- Function to fetch multiple metadata values in parallel and call the callback when all are done
+local function get_metadata_batch(keys, callback)
+    local results = {}
+    local pending = 0
+
+    -- Count the number of keys we need to fetch
+    for _ in pairs(keys) do
+        pending = pending + 1
+    end
+
+    -- Function to check if all requests are done
+    local function check_done()
+        if pending <= 0 then
+            callback(results)
+        end
+    end
+
+    -- Request each metadata value
+    for key, info in pairs(keys) do
+        get_metadata_value(key, info.default, function(value)
+            results[key] = value
+            pending = pending - 1
+            check_done()
+        end)
+    end
+
+    -- Handle the case where there are no keys
+    if pending == 0 then
+        callback(results)
+    end
 end
 
 -- Create control buttons using the utility function from util.lua
@@ -181,12 +212,8 @@ local function create_button(icon_name, command, tooltip_text)
         border_color = beautiful.music.border .. "55",
         shape_radius = dpi(4),
         on_click = function()
-            awful.spawn(playerctl_cmd(command))
-            -- Use a delayed update after button click
-            gears.timer.start_new(0.25, function()
-                music_widget.update(true)
-                return false
-            end)
+            command()
+
             return true
         end
     })
@@ -205,22 +232,11 @@ local function format_time(seconds)
     return string.format("%d:%02d", minutes, remaining_seconds)
 end
 
--- Function to get album art with caching and error handling
-local function get_album_art(callback)
-    -- Use cached album art if available
-    if music_widget.metadata_cache["albumArt"] and
-       (os.time() - music_widget.metadata_cache["albumArt"].timestamp) < music_widget.max_cache_age then
-        callback(music_widget.metadata_cache["albumArt"].value)
-        return
-    end
-
+-- Function to get album art with error handling
+local function get_album_art(title, callback)
     -- Get art URL asynchronously
     get_metadata_value("mpris:artUrl", "", function(art_url)
         if not art_url or art_url == "" then
-            music_widget.metadata_cache["albumArt"] = {
-                value = default_art,
-                timestamp = os.time()
-            }
             callback(default_art)
             return
         end
@@ -228,10 +244,6 @@ local function get_album_art(callback)
         -- If it's a file path, strip the file:// prefix
         if art_url:sub(1, 7) == "file://" then
             local path = art_url:sub(8)
-            music_widget.metadata_cache["albumArt"] = {
-                value = path,
-                timestamp = os.time()
-            }
             callback(path)
             return
         end
@@ -246,10 +258,6 @@ local function get_album_art(callback)
                 -- Check if we've already cached this art
                 awful.spawn.easy_async_with_shell("test -f '" .. cache_path .. "' && echo 'exists'", function(result)
                     if result:match("exists") then
-                        music_widget.metadata_cache["albumArt"] = {
-                            value = cache_path,
-                            timestamp = os.time()
-                        }
                         callback(cache_path)
                     else
                         -- Download the album art if it's not already cached
@@ -258,10 +266,6 @@ local function get_album_art(callback)
 
                         -- Wait a short time for download to complete
                         gears.timer.start_new(0.5, function()
-                            music_widget.metadata_cache["albumArt"] = {
-                                value = cache_path,
-                                timestamp = os.time()
-                            }
                             callback(cache_path)
                             return false
                         end)
@@ -272,28 +276,8 @@ local function get_album_art(callback)
         end
 
         -- For any other URL format, just use it directly
-        music_widget.metadata_cache["albumArt"] = {
-            value = art_url,
-            timestamp = os.time()
-        }
         callback(art_url)
     end)
-end
-
--- Function to recover widget from frozen state
-local function recover_widget()
-    debug_print("Recovering widget")
-
-    -- Reset all state
-    music_widget.metadata_cache = {}
-    music_widget.current_player = nil
-    music_widget.last_update = 0
-    music_widget.last_player_check = 0
-    music_widget.last_successful_update = os.time()
-    music_widget.last_reset = os.time()
-
-    -- Force a full update on next timer tick
-    music_widget.update(true)
 end
 
 -- Create the music widget
@@ -347,14 +331,17 @@ function music_widget.create()
     -- Create track info container
     local track_info = wibox.widget {
         {
-            title_widget,
-            artist_widget,
-            --player_widget,
-            layout = wibox.layout.fixed.vertical,
-            spacing = dpi(-2)
+            {
+                title_widget,
+                artist_widget,
+                layout = wibox.layout.fixed.vertical,
+                spacing = dpi(-1)
+            },
+            width = dpi(150),
+            widget = wibox.container.constraint
         },
-        forced_width = dpi(150),
-        widget = wibox.container.constraint
+        top = dpi(-2),
+        widget = wibox.container.margin
     }
 
     -- Create progress bar
@@ -379,9 +366,9 @@ function music_widget.create()
     }
 
     -- Create control buttons
-    local prev_button = create_button("prev", "previous", "Previous")
-    local play_pause_button = create_button("play", "play-pause", "Play/Pause")
-    local next_button = create_button("next", "next", "Next")
+    local prev_button = create_button("prev", music_widget.prev, "Previous")
+    local play_pause_button = create_button("play", music_widget.play_pause, "Play/Pause")
+    local next_button = create_button("next", music_widget.next, "Next")
 
     -- Create controls container
     local controls = wibox.widget {
@@ -405,28 +392,32 @@ function music_widget.create()
         {
             {
                 {
-                    time_display,
-                    halign = "left",
+                    {
+                        time_display,
+                        halign = "left",
+                        widget = wibox.container.place
+                    },
+                    bottom = dpi(4),
+                    widget = wibox.container.margin
+                },
+                {
+                    controls,
+                    halign = "right",
                     widget = wibox.container.place
                 },
-                bottom = dpi(4),
-                widget = wibox.container.margin
+                layout = wibox.layout.flex.horizontal
             },
             {
-                controls,
-                halign = "right",
-                widget = wibox.container.place
+                progress_bar,
+                right = dpi(4),
+                bottom = dpi(2),
+                widget = wibox.container.margin
             },
-            layout = wibox.layout.flex.horizontal
+            spacing = dpi(0),
+            layout = wibox.layout.fixed.vertical
         },
-        {
-            progress_bar,
-            right = dpi(4),
-            bottom = dpi(2),
-            widget = wibox.container.margin
-        },
-        spacing = dpi(0),
-        layout = wibox.layout.fixed.vertical
+        width = dpi(180),
+        widget = wibox.container.constraint
     }
 
     -- Main widget container
@@ -459,74 +450,80 @@ function music_widget.create()
         widget = wibox.container.background
     }
 
-    -- Flag to track if title/artist need update
-    local needs_text_update = true
-    local last_status = ""
-    local last_title = ""
-    local last_artist = ""
-    local last_player = ""
-    local update_in_progress = false
-
-    -- Rewritten update function with improved stability
-    function music_widget.update(force_update)
-        -- Prevent concurrent updates
-        if update_in_progress then
-            debug_print("Update already in progress, skipping")
-            return
-        end
-
-        update_in_progress = true
-
-        -- Don't force visibility here - we'll handle visibility based on status later
-        -- Only an early return if visibility is explicitly off
-        if not music_widget.visible then
-            widget.visible = false
-            update_in_progress = false
-            return
-        end
-
-        -- Check for unresponsive state
+    -- Update UI elements with metadata
+    local function update_ui(status, title, artist, position, length, art_path, player_name)
         local current_time = os.time()
-        if (current_time - music_widget.last_successful_update) >= music_widget.max_unresponsive_time then
-            debug_print("Widget appears unresponsive, attempting recovery")
-            recover_widget()
+
+        -- Update visibility state
+        if status == "Playing" then
+            music_widget.paused_since = os.time()
+            -- Always show widget when playing
+            if not widget.visible then
+                widget.visible = true
+            end
+        elseif status == "Paused" or status == "Stopped" then
+            -- Check timeout only for non-playing states
+            if os.time() - music_widget.paused_since > (config.music_widget_timeout or 60) then
+                if widget.visible then
+                    widget.visible = false
+                end
+            end
         end
 
-        -- Check if time for a periodic reset
-        if (current_time - music_widget.last_reset) >= music_widget.reset_interval then
-            debug_print("Performing periodic reset")
-            music_widget.metadata_cache = {}
-            music_widget.last_reset = current_time
-            force_update = true
-        end
+        -- Update album art
+        album_art.widget.widget.image = art_path or default_art
 
-        -- Ensure we have a current player
-        if not music_widget.current_player then
-            -- Force an immediate player check
-            music_widget.last_player_check = 0
-            get_prioritized_player()
-        end
+        -- Update title and artist with markup for colors
+        title_widget:set_markup(string.format('<span color="%s">%s</span>',
+            beautiful.music.title_fg or beautiful.music.fg,
+            gears.string.xml_escape(clip_text(title or "Not playing", 30))))
 
-        -- If still no player, show default state
-        if not music_widget.current_player then
-            title_widget:set_markup(string.format('<span color="%s">%s</span>',
-                beautiful.music.title_fg or beautiful.music.fg,
-                "Not playing"))
-            artist_widget:set_markup("")
+        artist_widget:set_markup(string.format('<span color="%s">%s</span>',
+            beautiful.music.artist_fg or beautiful.music.fg,
+            gears.string.xml_escape(clip_text(artist or "", 30))))
+
+        -- Update player name
+        if player_name then
+            player_widget:set_markup(string.format('<span color="%s">%s</span>',
+                beautiful.music.player_fg or beautiful.music.fg .. "88",
+                gears.string.xml_escape(player_name)))
+        else
             player_widget:set_markup("")
-            play_pause_button:update_image(icon_dir .. "play.png")
-            progress_bar:set_value(0)
-            time_display:set_markup(string.format('<span color="%s">%s</span>',
-                beautiful.music.time_fg or beautiful.music.fg,
-                "0:00 / 0:00"))
-            album_art.widget.widget.image = default_art
+        end
 
-            update_in_progress = false
-            music_widget.last_successful_update = current_time
+        -- Update play/pause button
+        if status == "Playing" then
+            play_pause_button:update_image(icon_dir .. "pause.png")
+        else
+            play_pause_button:update_image(icon_dir .. "play.png")
+        end
+
+        -- Update progress bar
+        local percent = 0
+        if length and length > 0 then
+            percent = (position / length) * 100
+        end
+        progress_bar:set_value(percent)
+
+        -- Update time display with markup for colors
+        local time_text = format_time(position) .. " / " .. format_time(length)
+        time_display:set_markup(string.format('<span color="%s">%s</span>',
+            beautiful.music.time_fg or beautiful.music.fg,
+            gears.string.xml_escape(time_text)))
+
+        -- Store current status
+        music_widget.current_status = status
+        music_widget.last_successful_update = current_time
+    end
+
+    -- Perform a position update
+    local function update_position()
+        -- Skip if no current player or update in progress
+        if not music_widget.current_player or music_widget.update_in_progress then
             return
         end
 
-        -- Get player status asynchronously first
+        -- Get current status
         awful.spawn.easy_async_with_shell(playerctl_cmd("status") .. " 2>/dev/null", function(stdout)
             local status = stdout and stdout:match("^(.-)%s*$") or "Stopped"
 
@@ -534,156 +531,184 @@ function music_widget.create()
             if not status or status == "" then
                 debug_print("Empty status, player might be closed")
                 music_widget.current_player = nil
-                music_widget.metadata_cache = {}
-                update_in_progress = false
-
-                -- Retry after a delay
-                gears.timer.start_new(1, function()
-                    music_widget.update(true)
-                    return false
-                end)
+                get_prioritized_player(function(player) end)
                 return
             end
 
-            -- Get position asynchronously
+            -- Get position
             awful.spawn.easy_async_with_shell(playerctl_cmd("position") .. " 2>/dev/null", function(pos_stdout)
                 local position = tonumber(pos_stdout and pos_stdout:match("^(.-)%s*$")) or 0
                 music_widget.time = position
 
-                -- If this is a full update, get full metadata
-                if force_update or (current_time - music_widget.last_update) >= music_widget.update_interval then
-                    -- Get title
-                    get_metadata_value("xesam:title", "Unknown", function(title)
-                        -- Get artist
-                        get_metadata_value("xesam:artist", "Unknown", function(artist)
-                            -- Get length
-                            get_metadata_value("mpris:length", "0", function(length_str)
-                                local length = tonumber(length_str) and (tonumber(length_str) / 1000000) or 0
-
-                                -- Get album art
-                                get_album_art(function(art_path)
-                                    -- Now update the widget with all data
-
-                                    -- Check if track changed
-                                    if title ~= music_widget.last_title then
-                                        debug_print("Track changed: " .. title)
-                                        force_update = true
-                                        music_widget.last_title = title
-                                    end
-
-                                    -- Update visibility state
-                                    if status == "Playing" then
-                                        music_widget.paused_since = os.time()
-                                        -- Always show widget when playing
-                                        if not widget.visible then
-                                            widget.visible = true
-                                        end
-                                    elseif status == "Paused" or status == "Stopped" then
-                                        -- Check timeout only for non-playing states
-                                        if os.time() - music_widget.paused_since > config.music_widget_timeout then
-                                            if widget.visible then
-                                                widget.visible = false
-                                            end
-                                        end
-                                    end
-
-                                    -- Check if text needs updating
-                                    needs_text_update = force_update or
-                                                    status ~= last_status or
-                                                    title ~= last_title or
-                                                    artist ~= last_artist or
-                                                    music_widget.current_player ~= last_player
-
-                                    if needs_text_update then
-                                        -- Update album art
-                                        album_art.widget.widget.image = art_path
-
-                                        -- Update title and artist with markup for colors
-                                        title_widget:set_markup(string.format('<span color="%s">%s</span>',
-                                            beautiful.music.title_fg or beautiful.music.fg,
-                                            gears.string.xml_escape(clip_text(title, 30))))
-
-                                        artist_widget:set_markup(string.format('<span color="%s">%s</span>',
-                                            beautiful.music.artist_fg or beautiful.music.fg,
-                                            gears.string.xml_escape(clip_text(artist, 30))))
-
-                                        -- Update player name
-                                        if music_widget.current_player then
-                                            player_widget:set_markup(string.format('<span color="%s">%s</span>',
-                                                beautiful.music.player_fg or beautiful.music.fg .. "88",
-                                                gears.string.xml_escape(music_widget.current_player)))
-                                        else
-                                            player_widget:set_markup("")
-                                        end
-
-                                        -- Update play/pause button
-                                        if status == "Playing" then
-                                            play_pause_button:update_image(icon_dir .. "pause.png")
-                                        else
-                                            play_pause_button:update_image(icon_dir .. "play.png")
-                                        end
-
-                                        -- Store current values for next comparison
-                                        last_status = status
-                                        last_title = title
-                                        last_artist = artist
-                                        last_player = music_widget.current_player
-                                    end
-
-                                    -- Always update position-related elements
-                                    -- Only update progress if playing or significant change
-                                    if status == "Playing" or math.abs(music_widget.time - music_widget.last_time) > 1 then
-                                        -- Update progress bar
-                                        local percent = 0
-                                        if length > 0 then
-                                            percent = (position / length) * 100
-                                        end
-                                        progress_bar:set_value(percent)
-
-                                        -- Update time display with markup for colors
-                                        local time_text = format_time(position) .. " / " .. format_time(length)
-                                        time_display:set_markup(string.format('<span color="%s">%s</span>',
-                                            beautiful.music.time_fg or beautiful.music.fg,
-                                            gears.string.xml_escape(time_text)))
-                                    end
-
-                                    music_widget.last_time = music_widget.time
-                                    music_widget.last_update = current_time
-                                    music_widget.last_successful_update = current_time
-                                    update_in_progress = false
-                                end)
-                            end)
-                        end)
-                    end)
-                else
-                    -- This is just a position update
-                    -- Only update progress if playing or significant change
-                    if status == "Playing" or math.abs(music_widget.time - music_widget.last_time) > 1 then
-                        -- Get cached length
-                        local length_str = music_widget.metadata_cache["mpris:length"] and
-                                         music_widget.metadata_cache["mpris:length"].value or "0"
-                        local length = tonumber(length_str) and (tonumber(length_str) / 1000000) or 0
-
-                        -- Update progress bar
-                        local percent = 0
-                        if length > 0 then
-                            percent = (position / length) * 100
-                        end
-                        progress_bar:set_value(percent)
-
-                        -- Update time display with markup for colors
-                        local time_text = format_time(position) .. " / " .. format_time(length)
-                        time_display:set_markup(string.format('<span color="%s">%s</span>',
-                            beautiful.music.time_fg or beautiful.music.fg,
-                            gears.string.xml_escape(time_text)))
-                    end
-
-                    music_widget.last_time = music_widget.time
-                    music_widget.last_successful_update = current_time
-                    update_in_progress = false
-                end
+                -- Update UI with new position but keep other values
+                update_ui(
+                    status,
+                    music_widget.current_title,
+                    music_widget.current_artist,
+                    position,
+                    music_widget.current_length,
+                    music_widget.current_art_path,
+                    music_widget.current_player
+                )
             end)
         end)
+    end
+
+    -- Function to recover widget from frozen state
+    local function recover_widget()
+        debug_print("Recovering widget")
+
+        -- Reset all state
+        music_widget.current_player = nil
+        music_widget.current_title = ""
+        music_widget.needs_update = true
+        music_widget.last_successful_update = os.time()
+
+        -- Force update
+        check_player_and_update()
+    end
+
+    -- Perform a full metadata update
+    function perform_full_update()
+        -- Skip if update already in progress
+        if music_widget.update_in_progress then
+            return
+        end
+
+        music_widget.update_in_progress = true
+        debug_print("Performing full update")
+
+        -- Check for unresponsive state
+        local current_time = os.time()
+        if (current_time - music_widget.last_successful_update) >= music_widget.max_unresponsive_time then
+            debug_print("Widget appears unresponsive, attempting recovery")
+            recover_widget()
+            music_widget.update_in_progress = false
+            return
+        end
+
+        -- Ensure we have a current player
+        if not music_widget.current_player then
+            get_prioritized_player(function(player)
+                if not player then
+                    -- If no player, show default state
+                    widget.visible = false
+                    title_widget:set_markup(string.format('<span color="%s">%s</span>',
+                        beautiful.music.title_fg or beautiful.music.fg,
+                        "Not playing"))
+                    artist_widget:set_markup("")
+                    player_widget:set_markup("")
+                    play_pause_button:update_image(icon_dir .. "play.png")
+                    progress_bar:set_value(0)
+                    time_display:set_markup(string.format('<span color="%s">%s</span>',
+                        beautiful.music.time_fg or beautiful.music.fg,
+                        "0:00 / 0:00"))
+                    album_art.widget.widget.image = default_art
+
+                    music_widget.update_in_progress = false
+                    music_widget.last_successful_update = current_time
+                else
+                    -- We have a player, continue with update
+                    perform_full_update()
+                end
+            end)
+            return
+        end
+
+        -- Get player status
+        awful.spawn.easy_async_with_shell(playerctl_cmd("status") .. " 2>/dev/null", function(stdout)
+            local status = stdout and stdout:match("^(.-)%s*$") or "Stopped"
+
+            -- If status is empty or bad, player might be closed
+            if not status or status == "" then
+                debug_print("Empty status, player might be closed")
+                music_widget.current_player = nil
+                music_widget.update_in_progress = false
+                return
+            end
+
+            -- Get position
+            awful.spawn.easy_async_with_shell(playerctl_cmd("position") .. " 2>/dev/null", function(pos_stdout)
+                local position = tonumber(pos_stdout and pos_stdout:match("^(.-)%s*$")) or 0
+                music_widget.time = position
+
+                -- Define the metadata we need to fetch
+                local metadata_keys = {
+                    ["xesam:title"] = {default = "Unknown"},
+                    ["xesam:artist"] = {default = "Unknown"},
+                    ["mpris:length"] = {default = "0"}
+                }
+
+                -- Fetch all metadata in parallel
+                get_metadata_batch(metadata_keys, function(metadata)
+                    local title = metadata["xesam:title"]
+                    local artist = metadata["xesam:artist"]
+                    local length_str = metadata["mpris:length"]
+                    local length = tonumber(length_str) and (tonumber(length_str) / 1000000) or 0
+
+                    -- Store current data
+                    music_widget.current_title = title
+                    music_widget.current_artist = artist
+                    music_widget.current_length = length
+
+                    -- Get album art
+                    get_album_art(title, function(art_path)
+                        -- Store art path
+                        music_widget.current_art_path = art_path
+
+                        -- Update UI with all collected data
+                        update_ui(status, title, artist, position, length, art_path, music_widget.current_player)
+
+                        -- Reset update flag
+                        music_widget.needs_update = false
+                        music_widget.update_in_progress = false
+                    end)
+                end)
+            end)
+        end)
+    end
+
+    -- Check current track title
+    local function check_title_change()
+        -- Skip if no current player
+        if not music_widget.current_player then
+            get_prioritized_player(function(player)
+                if player then
+                    check_title_change()
+                end
+            end)
+            return
+        end
+
+        -- Get current title
+        get_metadata_value("xesam:title", "Unknown", function(title)
+            -- If title has changed, we need a full update
+            if title ~= music_widget.current_title and title ~= "Unknown" then
+                debug_print("Track changed: " .. title)
+                music_widget.current_title = title
+                music_widget.needs_update = true
+                perform_full_update()
+            end
+        end)
+    end
+
+    -- Check player and update as needed
+    function check_player_and_update()
+        -- If no current player, try to find one
+        if not music_widget.current_player then
+            get_prioritized_player(function(player)
+                if player then
+                    -- Player found, force an update
+                    music_widget.needs_update = true
+                    if music_widget.needs_update then
+                        perform_full_update()
+                    end
+                end
+            end)
+        elseif music_widget.needs_update then
+            -- Player exists and update is needed
+            perform_full_update()
+        end
     end
 
     -- Toggle widget visibility
@@ -692,8 +717,9 @@ function music_widget.create()
         music_widget.visible = widget.visible
         if music_widget.visible then
             music_widget.paused_since = os.time()
+            music_widget.needs_update = true
+            check_player_and_update()
         end
-        music_widget.update(true)
     end
 
     -- Add a manual recovery function
@@ -706,26 +732,22 @@ function music_widget.create()
         })
     end
 
-    -- Set up timer callback that handles all updates
-    timer:connect_signal("timeout", function()
-        local current_time = os.time()
-
-        -- Always update position and status
-        music_widget.update(false)
-
-        -- This is now handled within the update function
-        -- Check if we need to look for players
-        -- if (current_time - music_widget.last_player_check) >= music_widget.player_check_interval then
-        --     get_prioritized_player()
-        -- end
-
-        return true  -- Keep the timer running
+    -- Set up position timer
+    position_timer:connect_signal("timeout", function()
+        update_position()
+        return true
     end)
 
-    -- Initial update (force full update)
-    music_widget.update(true)
+    -- Set up title check timer
+    title_check_timer:connect_signal("timeout", function()
+        check_title_change()
+        return true
+    end)
 
-    widget.forced_width = dpi(400)
+    -- Initial update
+    check_player_and_update()
+
+    widget.width = dpi(400)
     return widget
 end
 

@@ -2,3 +2,4 @@ persistent/*
 !persistent/.gitkeep
 wallpapers/*
 !wallpapers/.gitkeep
+album_art_cache/*
