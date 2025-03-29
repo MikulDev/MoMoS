@@ -292,11 +292,8 @@ function music_widget.create()
                 valign = "center",
                 widget = wibox.widget.imagebox
             },
-            shape = function(cr, width, height)
-                gears.shape.rounded_rect(cr, width, height, dpi(4))
-            end,
-            shape_border_width = 0,
-            widget = wibox.container.background
+            left = dpi(1),
+            widget = wibox.container.margin
         },
         forced_width = dpi(40),
         forced_height = dpi(40),
