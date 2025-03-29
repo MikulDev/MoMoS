@@ -35,6 +35,7 @@ local calendar = load_widget("calendar")
 local switcher = load_widget("switcher")
 local shutdown = load_widget("shutdown")
 local notifications = load_widget("notifications")
+local music = load_widget("music")
 appmenu_init()
 shutdown_init()
 calendar_init()
@@ -612,6 +613,22 @@ awful.screen.connect_for_each_screen(function(s)
 		systray_widget = nil
 	end
 
+    if s == screen.primary then
+        music_widget = wibox.widget {
+            {
+                music.create(),
+                top = dpi(2),
+                bottom = dpi(2),
+                widget = wibox.container.margin
+            },
+            make_spacer(dpi(6)),
+            create_divider(dpi(1), dpi(8)),
+            widget = wibox.layout.align.horizontal
+        }
+    else
+        music_widget = nil
+    end
+
 	-- Add widgets to the wibox
     s.mywibox:setup({
         layout = wibox.layout.align.horizontal,
@@ -642,6 +659,8 @@ awful.screen.connect_for_each_screen(function(s)
         {
             layout = wibox.layout.fixed.horizontal,
             make_spacer(dpi(12)),
+            music_widget,
+            make_spacer(dpi(6)),
             {
                 systray_widget,
                 top = dpi(4),
@@ -747,7 +766,9 @@ awful.key({ modkey }, "b", function() awful.spawn(bluetooth) end,
 awful.key({ modkey, "Control" }, "r", awesome.restart,
 {description = "reload awesome", group = "awesome"}),
 awful.key({ modkey, "Control"   }, "q", shutdown_toggle,
-{description = "quit awesome", group = "awesome"}),
+{description = "open power menu", group = "awesome"}),
+awful.key({ modkey }, "m", function() music.toggle() end,
+{description = "toggle music player", group = "widgets"}),
 
 awful.key({ modkey,           }, "]",     function () awful.tag.incmwfact( 0.05)          end,
               {description = "increase master width factor", group = "layout"}),

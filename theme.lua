@@ -182,6 +182,19 @@ theme.clock.button_bg_focus = theme.gray .. "55"
 theme.clock.button_border = theme.light_gray .. "00"
 theme.clock.button_border_focus = theme.white .. "44"
 
+-- Music widget
+theme.music = {}
+theme.music.bg = theme.dark_gray .. "66"
+theme.music.fg = theme.white .. "ff"
+theme.music.button_bg = theme.dark_gray .. "00"
+theme.music.button_fg = theme.white
+theme.music.border = theme.gray .. "aa"
+theme.music.progress_bg = theme.gray
+theme.music.progress_fg = theme.white
+theme.music.title_fg = theme.white .. "ff"
+theme.music.artist_fg = theme.light_gray .. "ff"
+theme.music.time_fg = theme.white .. "aa"
+
 -- There are other variable sets
 -- overriding the default one when
 -- defined, the sets are:

@@ -14,6 +14,14 @@ config.terminal = "alacritty"
 config.editor = os.getenv("EDITOR") or "gedit"
 config.web_browser = "firefox"
 config.bluetooth = config.terminal .. " -e bluetuith"
+config.music_players = {
+    "spotify",
+    "firefox",
+    "chromium",
+    "mpv",
+    "vlc"
+}
+config.music_widget_timeout = 60
 
 -- }}}
 
