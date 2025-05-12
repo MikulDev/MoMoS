@@ -67,7 +67,7 @@ local function add_notification(n)
     -- Create notification entry with the full notification object
     local notification = wrap_notification(n)
 
-	if client.focus and notification.app_class == client.focus.class then return end
+	--if client.focus and notification.app_class == client.focus.class then return end
     
     -- Add to start of table
     table.insert(notifications.history, 1, notification)
@@ -665,8 +665,15 @@ naughty.connect_signal("destroyed", update_count)
 -- Add notification to map upon display
 naughty.connect_signal("added", function(n)
     for _, entry in ipairs(config.notifications.dont_store) do
-        if string.find(n.title:lower(), entry:lower()) then
+        if entry == "" and #n.clients == 0 then
             return
+        end
+        for _, c in ipairs(n.clients) do
+            if entry == "" and c.class == "" then
+                return
+            elseif string.find(c.class:lower(), entry:lower()) then
+                return
+            end
         end
     end
     add_notification(n)
@@ -727,6 +734,7 @@ naughty.connect_signal("request::display", function(n)
         gears.timer.start_new(config.notifications.timeout, function()
             if box and not box._private.is_destroyed then
                 box.visible = false
+                box.maximum_height = 0
             end
             return false
         end)
