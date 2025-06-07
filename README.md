@@ -14,12 +14,18 @@ A lightweight tiling window manager with modern creature comforts and style, bui
 - Configuration & theme variables
 
 ## Screenshots
-![1739296819](https://github.com/user-attachments/assets/50e0d746-9b7b-484c-b7ec-79c321d28401)
-![1739296876](https://github.com/user-attachments/assets/d23008d9-dbbf-473a-8d10-67e619859660)
-![1739296748](https://github.com/user-attachments/assets/738555ca-d4a7-4653-8878-eb23e31c71fa)
-![1739297706](https://github.com/user-attachments/assets/07cec3ff-bf34-4d26-b7e2-ccba5255f778)
-![1739298031](https://github.com/user-attachments/assets/34b56c59-65e9-4a30-b88c-3ab9c2044785)
-![1739383800](https://github.com/user-attachments/assets/471bc257-1289-4948-ba78-e43004f06127)
+### Desktop
+![Desktop](https://github.com/user-attachments/assets/e7583e95-e148-472e-9376-1eebe46a9da1)
+### App Launcher
+![Launcher](https://github.com/user-attachments/assets/6a97d889-7892-400b-8093-d938f90f34f0)
+### Notifications
+![Notifications](https://github.com/user-attachments/assets/5cf9bb8b-343b-4001-abf1-c26c66e7586e)
+### Calendar
+![Calendar](https://github.com/user-attachments/assets/dd4eb5bf-74bd-4824-8add-583c5684ef98)
+### Shutdown Menu
+![Shutdown](https://github.com/user-attachments/assets/a55a1558-49a6-4b8a-a70b-23667b4c74fc)
+### Task Switcher
+![Switcher](https://github.com/user-attachments/assets/e61f5611-2d8f-4bf5-babe-7652bf8f30d5)
 
 ## Required Extras
 List of required external programs for MoMoS to run properly:
