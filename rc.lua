@@ -404,7 +404,7 @@ awful.screen.connect_for_each_screen(function(s)
                                 valign = "center",
                                 widget = wibox.container.place,
                             },
-                            left = dpi(-2),
+                            left = dpi(-2) / 2,
                             widget = wibox.container.margin
                         },
                         layout = wibox.layout.fixed.horizontal,
