@@ -188,14 +188,14 @@ function music_widget.create()
         markup = string.format('<span color="%s">%s</span>',
             beautiful.music.title_fg or beautiful.music.fg,
             "Not playing"),
-        font = font_with_size(dpi(12)),
+        font = font_with_size(11),
         widget = wibox.widget.textbox
     }
 
     local artist_widget = wibox.widget {
         id = "artist",
         markup = "",
-        font = font_with_size(dpi(11)),
+        font = font_with_size(10),
         widget = wibox.widget.textbox
     }
 
@@ -248,7 +248,7 @@ function music_widget.create()
             {
                 {
                     title_widget,
-                    height = dpi(18),
+                    height = dpi(22),
                     widget = wibox.container.constraint
                 },
                 artist_widget,
@@ -258,7 +258,7 @@ function music_widget.create()
             width = dpi(150),
             widget = wibox.container.constraint
         },
-        top = dpi(2),
+        top = dpi(0),
         widget = wibox.container.margin
     }
 
