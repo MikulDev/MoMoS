@@ -90,20 +90,49 @@ local function remove_notification(n)
 end
 
 local function jump_to_client(n)
-	local current_pos = mouse.coords()
-	local jumped = false
-	for _, c in ipairs(n.clients) do
-		c.urgent = true
-		if jumped then
-			c:activate {
-				context = "client.jumpto"
-			}
-		else
-			c:jump_to()
-			jumped = true
-		end
-	end
-	mouse.coords{x = current_pos.x, y = current_pos.y}
+    local current_pos = mouse.coords()
+    local jumped = false
+    local app_name = ""
+
+    -- Only attempt to process clients if they exist
+    if n.clients and #n.clients > 0 then
+        -- Try to get app name/class for later use if needed
+        if n.clients[1].class then
+            app_name = n.clients[1].class:lower()
+        elseif n.clients[1].name then
+            app_name = n.clients[1].name:lower()
+        end
+
+        -- Try to jump to each client safely
+        for _, c in ipairs(n.clients) do
+            local status, err = pcall(function()
+                if c and c.valid then  -- Check if client is valid
+                    c.urgent = true
+                    if jumped then
+                        c:activate {
+                            context = "client.jumpto"
+                        }
+                    else
+                        c:jump_to()
+                        jumped = true
+                    end
+                end
+            end)
+
+            if not status then
+                debug_log("[Error jumping to client]: " .. tostring(err))
+            end
+         end
+    end
+
+    -- If we couldn't jump to any client, try to launch the app
+    if not jumped and app_name ~= "" then
+        -- Try to launch the application from systray
+        awful.spawn.with_shell(app_name)
+    end
+
+    -- Restore mouse position
+    mouse.coords{x = current_pos.x, y = current_pos.y}
 end
 
 close_hover = false
@@ -669,8 +698,8 @@ naughty.connect_signal("added", function(n)
             return
         end
         for _, c in ipairs(n.clients) do
-            if entry == "" and c.class == "" then
-                return
+            if entry == "" then
+                if c.class == entry then return end
             elseif string.find(c.class:lower(), entry:lower()) then
                 return
             end
