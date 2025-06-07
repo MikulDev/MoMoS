@@ -29,7 +29,7 @@ List of required external programs for MoMoS to run properly:
 ## Recommended Extras
 A list of additional applications for the best experience:
 - **Picom** (Jonaburg Build): Lightweight compositor that adds transparency and animation effects
-    - You will have to build it yourself, but it's pretty easy: https://github.com/jonaburg/picom?tab=readme-ov-file
+    - You will have to build it yourself, but it's pretty easy: https://github.com/jonaburg/picom
     - The "extras" folder contains a good default config, which you can put into ~/.config/picom/
 
 ## Setup
