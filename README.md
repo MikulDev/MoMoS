@@ -14,17 +14,18 @@ A lightweight tiling window manager with modern creature comforts and style, bui
 - Configuration & theme variables
 
 ## Screenshots
+### Desktop
 ![Desktop](https://github.com/user-attachments/assets/e7583e95-e148-472e-9376-1eebe46a9da1)
-
+### App Launcher
 ![Launcher](https://github.com/user-attachments/assets/6a97d889-7892-400b-8093-d938f90f34f0)
-
+### Notifications
 ![Notifications](https://github.com/user-attachments/assets/5cf9bb8b-343b-4001-abf1-c26c66e7586e)
-
-![1749312833](https://github.com/user-attachments/assets/dd4eb5bf-74bd-4824-8add-583c5684ef98)
-
-![1749312790](https://github.com/user-attachments/assets/a55a1558-49a6-4b8a-a70b-23667b4c74fc)
-
-![1749312320](https://github.com/user-attachments/assets/e61f5611-2d8f-4bf5-babe-7652bf8f30d5)
+### Calendar
+![Calendar](https://github.com/user-attachments/assets/dd4eb5bf-74bd-4824-8add-583c5684ef98)
+### Shutdown Menu
+![Shutdown](https://github.com/user-attachments/assets/a55a1558-49a6-4b8a-a70b-23667b4c74fc)
+### Task Switcher
+![Switcher](https://github.com/user-attachments/assets/e61f5611-2d8f-4bf5-babe-7652bf8f30d5)
 
 ## Required Extras
 List of required external programs for MoMoS to run properly:
