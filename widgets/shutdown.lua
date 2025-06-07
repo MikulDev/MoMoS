@@ -45,7 +45,9 @@ function create_action_button(action, index)
         opacity = 0.6,
         opacity_hover = 1,
         bg_color = theme.shutdown.button_bg,
-        border_color = theme.shutdown.border .. "55",
+        hover_bg = theme.shutdown.button_bg_focus,
+        border_color = theme.shutdown.border,
+        hover_border = theme.shutdown.border_focus,
         shape_radius = dpi(12),
         on_click = function()
             awful.spawn(action.command)
@@ -58,7 +60,7 @@ function create_action_button(action, index)
         {
             text = action.name,
             widget = wibox.widget.textbox,
-            font = font_with_size(dpi(12)),
+            font = font_with_size(12),
             align = 'center'
         },
         fg = theme.shutdown.fg,

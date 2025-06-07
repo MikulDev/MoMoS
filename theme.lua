@@ -127,9 +127,10 @@ theme.appmenu.button_border_sudo = "#D9B775" .. "dd"
 theme.shutdown = {}
 theme.shutdown.bg = theme.pitch_black .. "88"
 theme.shutdown.button_bg = theme.dark_gray .. "dd"
-theme.shutdown.button_bg_focus = theme.selected_dark .. "77"
+theme.shutdown.button_bg_focus = theme.gray .. "77"
 theme.shutdown.fg = theme.light_gray .. "d0"
-theme.shutdown.border = theme.gray
+theme.shutdown.border = theme.gray .. "55"
+theme.shutdown.border_focus = theme.white .. "55"
 
 -- Calendar
 theme.calendar = {}
