@@ -14,17 +14,17 @@ A lightweight tiling window manager with modern creature comforts and style, bui
 - Configuration & theme variables
 
 ## Screenshots
-![1739296819](https://github.com/user-attachments/assets/50e0d746-9b7b-484c-b7ec-79c321d28401)
-![1739296876](https://github.com/user-attachments/assets/d23008d9-dbbf-473a-8d10-67e619859660)
-![1739296748](https://github.com/user-attachments/assets/738555ca-d4a7-4653-8878-eb23e31c71fa)
-![1739297706](https://github.com/user-attachments/assets/07cec3ff-bf34-4d26-b7e2-ccba5255f778)
-![1739298031](https://github.com/user-attachments/assets/34b56c59-65e9-4a30-b88c-3ab9c2044785)
-![1739383800](https://github.com/user-attachments/assets/471bc257-1289-4948-ba78-e43004f06127)
 
 ## Required Extras
 List of required external programs for MoMoS to run properly:
 - **Zenity**: Simple API for creating dialog GUIs. Used for running programs with sudo in the application launcher
 - **PlayerCTL**: Universal music player API. Music controls will not work without it
+![1749312235](https://github.com/user-attachments/assets/e7583e95-e148-472e-9376-1eebe46a9da1)
+![1749312690](https://github.com/user-attachments/assets/7c24d909-8050-4755-8edd-6d8aab93391d)
+![1749313726](https://github.com/user-attachments/assets/50fc3a00-9a19-4bb0-8285-6023ca596724)
+![1749312833](https://github.com/user-attachments/assets/dd4eb5bf-74bd-4824-8add-583c5684ef98)
+![1749312790](https://github.com/user-attachments/assets/5900bb05-abcb-4b47-bf1f-5c147788901d)
+![1749312320](https://github.com/user-attachments/assets/1c1251c5-9a51-46eb-82db-974ecb7867d5)
 
 ## Recommended Extras
 A list of additional applications for the best experience:
