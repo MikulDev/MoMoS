@@ -273,6 +273,7 @@ function music_widget.create()
                         widget = wibox.container.place
                     },
                     bottom = dpi(4),
+                    right = dpi(-8),
                     widget = wibox.container.margin
                 },
                 {
@@ -291,7 +292,7 @@ function music_widget.create()
             spacing = dpi(0),
             layout = wibox.layout.fixed.vertical
         },
-        width = dpi(180),
+        width = dpi(210),
         widget = wibox.container.constraint
     }
 
