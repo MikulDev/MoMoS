@@ -222,6 +222,7 @@ myawesomemenu = {
     { "edit config", editor_cmd .. " " .. awesome.conffile },
     { "restart", awesome.restart },
     { "quit", function() awesome.quit() end },
+    { "screenshot", function() take_screenshot() end },
     { "open terminal", terminal }
 }
 
