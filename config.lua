@@ -13,7 +13,7 @@ config.compositor = "picom"
 config.terminal = "alacritty"
 config.editor = os.getenv("EDITOR") or "gedit"
 config.web_browser = "firefox"
-config.bluetooth = config.terminal .. " -e bluetuith"
+config.bluetooth = "blueman-manager"
 
 -- }}}
 
