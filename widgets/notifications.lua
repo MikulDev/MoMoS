@@ -166,9 +166,7 @@ local function close_notif(n)
 		select_notif_under_mouse()
 	end
 
--- Modify the create_notification_widget function
 local function create_notification_widget(n)
-    -- Create close button (keeping existing close button code)
     local close_button = create_image_button({
         image_path = config_dir .. "theme-icons/close.png",
         image_size = dpi(16),
@@ -276,7 +274,6 @@ local function create_notification_widget(n)
         layout = wibox.layout.fixed.horizontal
     }
 
-    -- Rest of the widget creation code remains the same
     local bg_container = wibox.widget {
         {
             {
@@ -308,7 +305,6 @@ local function create_notification_widget(n)
         layout = wibox.layout.stack
     }
 
-    -- Add existing button handlers and hover effects
     w:buttons(gears.table.join(
         awful.button({}, 1, function()
             if n.notification and close_hover == false then
@@ -489,6 +485,7 @@ function create_notification_list(preview)
     local clear_all_button = create_labeled_image_button({
         image_path = config_dir .. "theme-icons/close.png",
         label_text = "All",
+        text_size = 11,
         image_size = dpi(16),
         padding = dpi(8),
         opacity = 0.5,
@@ -694,9 +691,11 @@ naughty.connect_signal("destroyed", update_count)
 -- Add notification to map upon display
 naughty.connect_signal("added", function(n)
     for _, entry in ipairs(config.notifications.dont_store) do
+        -- Don't store if "no name" is blocked and notif has no owner
         if entry == "" and #n.clients == 0 then
             return
         end
+        -- Don't store if notif's owner is in the "don't store" list
         for _, c in ipairs(n.clients) do
             if entry == "" then
                 if c.class == entry then return end
@@ -705,6 +704,7 @@ naughty.connect_signal("added", function(n)
             end
         end
     end
+    -- Add notification to tray
     add_notification(n)
 end)
 

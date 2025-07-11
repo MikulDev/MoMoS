@@ -45,6 +45,11 @@ config.music_players = {
 }
 config.music_widget_timeout = 60
 
+config.disabled_widgets = {
+    "music",
+    "notifications"
+}
+
 -- }}}
 
 --{{{ Screen

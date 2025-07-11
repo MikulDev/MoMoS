@@ -36,9 +36,10 @@ local switcher = load_widget("switcher")
 local shutdown = load_widget("shutdown")
 local notifications = load_widget("notifications")
 local music = load_widget("music")
-appmenu_init()
-shutdown_init()
-calendar_init()
+
+if appmenu then appmenu_init() end
+if shutdown then shutdown_init() end
+if calendar then calendar_init() end
 
 -- Config settings
 local config = require("config")
@@ -102,6 +103,7 @@ naughty.config.defaults.timeout = 0
 --- {{{ App Menu
 
 -- Create the app menu popup
+if appmenu then
 appmenu_data.popup = awful.popup {
     widget = appmenu_create(),
     border_color = beautiful.border_focus,
@@ -117,6 +119,7 @@ appmenu_data.popup = awful.popup {
     maximum_width = dpi(400),
     maximum_height = dpi(600)
 }
+end
 
 --- }}}
 
@@ -240,9 +243,10 @@ local launcher = create_image_button({
         on_click = function()
             mymainmenu:toggle()
         end
-    })
+})
+
 --awful.widget.launcher({ image = config_dir .. "theme-icons/launcher_icon.png", menu = mymainmenu})
-local notif_button = notifications.create_button()
+local notif_button = notifications and notifications.create_button() or make_spacer(dpi(5))
 add_hover_cursor(launcher)
 mylauncher = wibox.widget {
 	{
@@ -404,7 +408,7 @@ awful.screen.connect_for_each_screen(function(s)
                                 valign = "center",
                                 widget = wibox.container.place,
                             },
-                            left = dpi(-2) / 2,
+                            left = -1,
                             widget = wibox.container.margin
                         },
                         layout = wibox.layout.fixed.horizontal,
@@ -446,6 +450,7 @@ awful.screen.connect_for_each_screen(function(s)
 					return false
                 end)
 	            
+
 	           	-- Update focus dot
 	           	if (tg:clients()[1] ~= nil) then
 					if (selected) then
@@ -565,11 +570,13 @@ awful.screen.connect_for_each_screen(function(s)
         hover_border = theme.clock.button_border_focus,
         shape_radius = dpi(4),
         on_click = function()
-            calendar.toggle()
+            if calendar then calendar.toggle() end
         end
     })
 
-    calendar.attach(s.mytextclock)
+    if calendar then
+        calendar.attach(s.mytextclock)
+    end
 
     -- Create the wibox
     s.mywibox = awful.wibar({ position = "top", screen = s, bg = beautiful.bg_normal, height = dpi(50)})
@@ -614,7 +621,7 @@ awful.screen.connect_for_each_screen(function(s)
 		systray_widget = nil
 	end
 
-    if s == screen.primary then
+    if s == screen.primary and music then
         music_widget = wibox.widget {
             music.create(),
             create_divider(dpi(1), dpi(8)),
@@ -754,67 +761,81 @@ awful.key({ modkey }, "Tab", function() switcher.show() end,
 
 -- Standard program
 awful.key({ modkey,           }, "Return", function () awful.spawn(terminal) end,
-{description = "open a terminal", group = "launcher"}),
+    {description = "open a terminal", group = "launcher"}),
 awful.key({ modkey,           }, "w", function () awful.spawn(web_browser) end,
-{description = "open web browser", group = "launcher"}),
+    {description = "open web browser", group = "launcher"}),
 awful.key({ modkey }, "b", function() awful.spawn(bluetooth) end,
-{description = "open bluetooth menu", group = "client"}),
+    {description = "open bluetooth menu", group = "client"}),
 awful.key({ modkey, "Control" }, "r", awesome.restart,
-{description = "reload awesome", group = "awesome"}),
-awful.key({ modkey, "Control"   }, "q", shutdown_toggle,
-{description = "open power menu", group = "awesome"}),
-awful.key({ modkey, "Shift"}, "m", function() music.toggle() end,
-{description = "toggle music player", group = "widgets"}),
-awful.key({ modkey}, "m", function() music.play_pause() end,
-{description = "play/pause music player", group = "widgets"}),
-awful.key({ modkey}, ",", function() music.prev() end,
-{description = "previous track", group = "widgets"}),
-awful.key({ modkey}, ".", function() music.next() end,
-{description = "next track", group = "widgets"}),
-
+    {description = "reload awesome", group = "awesome"}),
 awful.key({ modkey,           }, "]",     function () awful.tag.incmwfact( 0.05)          end,
-              {description = "increase master width factor", group = "layout"}),
-    awful.key({ modkey,           }, "[",     function () awful.tag.incmwfact(-0.05)          end,
-              {description = "decrease master width factor", group = "layout"}),
-    awful.key({ modkey, "Shift"   }, "h",     function () awful.tag.incnmaster( 1, nil, true) end,
-              {description = "increase the number of master clients", group = "layout"}),
-    awful.key({ modkey, "Shift"   }, "l",     function () awful.tag.incnmaster(-1, nil, true) end,
-              {description = "decrease the number of master clients", group = "layout"}),
-    awful.key({ modkey, "Control" }, "h",     function () awful.tag.incncol( 1, nil, true)    end,
-              {description = "increase the number of columns", group = "layout"}),
-    awful.key({ modkey, "Control" }, "l",     function () awful.tag.incncol(-1, nil, true)    end,
-              {description = "decrease the number of columns", group = "layout"}),
+    {description = "increase master width factor", group = "layout"}),
+awful.key({ modkey,           }, "[",     function () awful.tag.incmwfact(-0.05)          end,
+    {description = "decrease master width factor", group = "layout"}),
+awful.key({ modkey, "Shift"   }, "h",     function () awful.tag.incnmaster( 1, nil, true) end,
+    {description = "increase the number of master clients", group = "layout"}),
+awful.key({ modkey, "Shift"   }, "l",     function () awful.tag.incnmaster(-1, nil, true) end,
+    {description = "decrease the number of master clients", group = "layout"}),
+awful.key({ modkey, "Control" }, "h",     function () awful.tag.incncol( 1, nil, true)    end,
+    {description = "increase the number of columns", group = "layout"}),
+awful.key({ modkey, "Control" }, "l",     function () awful.tag.incncol(-1, nil, true)    end,
+    {description = "decrease the number of columns", group = "layout"}),
 
-    awful.key({ modkey, "Control" }, "n",
-              function ()
-                  local c = awful.client.restore()
-                  -- Focus restored client
-                  if c then
-                    c:emit_signal(
-                        "request::activate", "key.unminimize", {raise = true}
-                    )
-                  end
-              end,
-              {description = "restore minimized", group = "client"}),
+awful.key({ modkey, "Control" }, "n",
+          function ()
+              local c = awful.client.restore()
+              -- Focus restored client
+              if c then
+                c:emit_signal(
+                    "request::activate", "key.unminimize", {raise = true}
+                )
+              end
+          end,
+          {description = "restore minimized", group = "client"}),
 
-    -- Prompt
-    awful.key({ modkey },            "r",     function () awful.screen.focused().mypromptbox:run() end,
-              {description = "run prompt", group = "launcher"}),
+-- Prompt
+awful.key({ modkey },            "r",     function () awful.screen.focused().mypromptbox:run() end,
+          {description = "run prompt", group = "launcher"}),
 
-    awful.key({ modkey }, "l",
-              function ()
-                  awful.prompt.run {
-                    prompt       = "Run Lua code: ",
-                    textbox      = awful.screen.focused().mypromptbox.widget,
-                    exe_callback = awful.util.eval,
-                    history_path = awful.util.get_cache_dir() .. "/history_eval"
-                  }
-              end,
-              {description = "lua execute prompt", group = "awesome"}),
-    -- Menubar
-    awful.key({ modkey }, "d", function() appmenu_toggle() end,
-    	{description = "show application menu", group = "launcher"})
+awful.key({ modkey }, "l",
+          function ()
+              awful.prompt.run {
+                prompt       = "Run Lua code: ",
+                textbox      = awful.screen.focused().mypromptbox.widget,
+                exe_callback = awful.util.eval,
+                history_path = awful.util.get_cache_dir() .. "/history_eval"
+              }
+          end,
+          {description = "lua execute prompt", group = "awesome"})
 )
+
+-- Menubar
+if appmenu then
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey }, "d", appmenu_toggle,
+	   {description = "show application menu", group = "launcher"}))
+end
+
+if shutdown then
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey, "Control"   }, "q", shutdown_toggle,
+        {description = "open power menu", group = "awesome"}))
+end
+
+if music then
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey, "Shift"}, "m", function() music.toggle() end,
+        {description = "toggle music player", group = "widgets"}))
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey}, "m", function() music.play_pause() end,
+        {description = "play/pause music player", group = "widgets"}))
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey}, ",", function() music.prev() end,
+        {description = "previous track", group = "widgets"}))
+    globalkeys = gears.table.join(globalkeys,
+    awful.key({ modkey}, ".", function() music.next() end,
+        {description = "next track", group = "widgets"}))
+end
 
 clientkeys = gears.table.join(
     awful.key({ modkey, "Shift"   }, "f",
@@ -1075,8 +1096,8 @@ end)
 client.connect_signal("mouse::enter", function(c)
     if (client.focus ~= c 
 		and not switcher_data.is_open 
-		and not appmenu_data.wibox.visible 
-		and not shutdown_data.wibox.visible) 
+        and (appmenu == nil or not appmenu_data.wibox.visible)
+		and (shutdown == nil or not shutdown_data.wibox.visible))
 	then
         c:emit_signal("request::activate", "mouse_enter", {raise = false})
     end

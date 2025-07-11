@@ -88,8 +88,8 @@ local function create_button(icon_name, command, tooltip_text)
         button_size = dpi(24),
         opacity = 0.8,
         opacity_hover = 1,
-        bg_color = beautiful.music.button_bg,
-        border_color = beautiful.music.border .. "55",
+        bg_color = theme.music.button_bg,
+        border_color = theme.music.border .. "55",
         shape_radius = dpi(4),
         on_click = command
     })
@@ -186,7 +186,7 @@ function music_widget.create()
     local title_widget = wibox.widget {
         id = "title",
         markup = string.format('<span color="%s">%s</span>',
-            beautiful.music.title_fg or beautiful.music.fg,
+            theme.music.title_fg or theme.music.fg,
             "Not playing"),
         font = font_with_size(11),
         widget = wibox.widget.textbox
@@ -205,8 +205,8 @@ function music_widget.create()
         max_value = 100,
         value = 0,
         forced_height = dpi(3),
-        color = beautiful.music.progress_fg,
-        background_color = beautiful.music.progress_bg,
+        color = theme.music.progress_fg,
+        background_color = theme.music.progress_bg,
         widget = wibox.widget.progressbar
     }
 
@@ -214,9 +214,9 @@ function music_widget.create()
     local time_display = wibox.widget {
         id = "time",
         markup = string.format('<span color="%s">%s</span>',
-            beautiful.music.time_fg or beautiful.music.fg,
+            theme.music.time_fg or theme.music.fg,
             "0:00 / 0:00"),
-        font = beautiful.font_small or beautiful.font,
+        font = font_with_size(11),
         widget = wibox.widget.textbox
     }
 
@@ -316,13 +316,13 @@ function music_widget.create()
             margins = dpi(4),
             widget = wibox.container.margin
         },
-        bg = beautiful.music.bg,
-        fg = beautiful.music.fg,
+        bg = theme.music.bg,
+        fg = theme.music.fg,
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, dpi(6))
         end,
         shape_border_width = dpi(1),
-        shape_border_color = beautiful.music.border,
+        shape_border_color = theme.music.border,
         widget = wibox.container.background
     }
 
@@ -420,11 +420,11 @@ function music_widget.create()
 
                                 -- Update UI elements
                                 music_widget.ui.title:set_markup(string.format('<span color="%s">%s</span>',
-                                    beautiful.music.title_fg or beautiful.music.fg,
+                                    theme.music.title_fg or theme.music.fg,
                                     gears.string.xml_escape(clip_text(title, 30))))
 
                                 music_widget.ui.artist:set_markup(string.format('<span color="%s">%s</span>',
-                                    beautiful.music.artist_fg or beautiful.music.fg,
+                                    theme.music.artist_fg or theme.music.fg,
                                     gears.string.xml_escape(clip_text(artist, 30))))
 
                                 -- Update progress
@@ -438,7 +438,7 @@ function music_widget.create()
                                     -- Update time display
                                     local time_text = format_time(position) .. " / " .. format_time(length)
                                     music_widget.ui.time:set_markup(string.format('<span color="%s">%s</span>',
-                                        beautiful.music.time_fg or beautiful.music.fg,
+                                        theme.music.time_fg or theme.music.fg,
                                         gears.string.xml_escape(time_text)))
                                     music_widget.ui.progress:set_value(percent)
                                 end

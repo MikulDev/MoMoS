@@ -4,6 +4,7 @@ local gears = require("gears")
 local naughty = require("naughty")
 local cairo = require("lgi").cairo
 local wibox = require("wibox")
+local config = require("config")
 local dpi = require("beautiful.xresources").apply_dpi
 
 local config_dir = gears.filesystem.get_configuration_dir()
@@ -28,6 +29,9 @@ function load_util(name)
 end
 
 function load_widget(name)
+    if table_contains(config.disabled_widgets, name) then
+        return nil
+        end
 	return dofile(string.format("%swidgets/%s.lua", config_dir, name))
 end
 
@@ -270,6 +274,7 @@ function create_labeled_image_button(args)
     args = args or {}
     local image_path = args.image_path
     local label_text = args.label_text or ""
+    local text_size = args.text_size or math.floor(image_size * 0.75)
     local fallback_text = args.fallback_text or "⬡"
     local image_size = args.image_size or dpi(24)
     local padding = args.padding or dpi(6)
@@ -316,7 +321,7 @@ function create_labeled_image_button(args)
     local label_widget = wibox.widget {
 		{
 	        text = label_text,
-	        font = font_with_size(math.floor(image_size * 0.75)),
+	        font = font_with_size(text_size),
 	        align = 'left',
 	        valign = 'center',
 	        widget = wibox.widget.textbox,
@@ -336,6 +341,7 @@ function create_labeled_image_button(args)
         {
             label_widget,
             right = padding,
+            top = -dpi(2),
             widget = wibox.container.margin
         },
         align = 'center',
@@ -506,6 +512,15 @@ function jump_to_client(client)
 	local current_pos = mouse.coords()
     client:jump_to()
 	mouse.coords{x = current_pos.x, y = current_pos.y}
+end
+
+function table_contains(table, value)
+    for i = 1, #table do
+      if (table[i] == value) then
+        return true
+      end
+    end
+    return false
 end
 
 return util

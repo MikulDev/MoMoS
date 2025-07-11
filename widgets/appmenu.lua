@@ -1087,4 +1087,4 @@ function appmenu_toggle()
     end
 end
 
-return menu
+return appmenu_data
