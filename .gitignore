@@ -2,4 +2,6 @@ persistent/*
 !persistent/.gitkeep
 wallpapers/*
 !wallpapers/.gitkeep
+screensavers/*
+!screensavers/.gitkeep
 album_art_cache/*

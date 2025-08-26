@@ -28,6 +28,12 @@ local scroll_state = {
     items_per_page = 5,
 }
 
+local function set_button_text(text)
+    if notifications.button then
+        notifications.button:update_text(text)
+    end
+end
+
 do
     local in_error = false
     awesome.connect_signal("debug::error", function (err)
@@ -562,54 +568,36 @@ function create_notification_list(preview)
 	return main_layout
 end
 
--- Create the notification center button
 function notifications.create_button()
-
-    -- Create the label
-    local label = wibox.widget {
-        text = "0",
-        font = font_with_size(11),
-        align = 'left',
-        valign = 'center',
-        widget = wibox.widget.textbox
-    }
-
-	local icon = wibox.widget {
-        image = beautiful.notification_icon or config_dir .. "theme-icons/notification.png",
-        resize = true,
-        forced_width = config.notifications.button_size,
-        forced_height = config.notifications.button_size,
+    local button = create_labeled_image_button({
+        image_path = beautiful.notification_icon or config_dir .. "theme-icons/notification.png",
+        image_size = config.notifications.button_size,
+        label_text = "0",
+        text_size = 12,
+        padding = dpi(3),
         opacity = 0.5,
-        widget = wibox.widget.imagebox
-    }
-
-    -- Create content
-    local content = wibox.widget {
-        {
-            icon,
-            margins = dpi(3),
-            widget = wibox.container.margin
-        },
-        {
-            label,
-            right = dpi(3),
-            widget = wibox.container.margin
-        },
-        layout = wibox.layout.fixed.horizontal
-    }
-
-    -- Create the button
-    local button = wibox.widget {
-        content,
-        bg = theme.notifications.main_button_bg,
-        shape = function(cr, width, height)
-            gears.shape.rounded_rect(cr, width, height, dpi(4))
+        opacity_hover = 1,
+        fg_color = theme.notifications.button_fg,
+        hover_fg = theme.notifications.button_fg_focus,
+        bg_color = theme.notifications.button_bg,
+        border_color = theme.notifications.button_border,
+        hover_bg = theme.notifications.button_bg_focus,
+        hover_border = theme.notifications.button_border_focus,
+        shape_radius = dpi(4),
+        on_click = function()
+            if #notifications.history == 0 then return end
+            -- Reset scroll position when opening
+            if not notifications.popup.visible then
+                scroll_state.start_idx = 1
+                notifications.popup.widget = create_notification_list()
+            end
+            -- Position popup on current screen
+            notifications.popup.screen = mouse.screen
+            notifications.popup.visible = not notifications.popup.visible
         end,
-        fg = theme.notifications.button_fg,
-        widget = wibox.container.background
-    }
-
-    add_hover_cursor(button)
+        id = "notification_button"
+    })
+    notifications.button = button
 
     -- Create the popup
     notifications.popup = awful.popup {
@@ -632,43 +620,14 @@ function notifications.create_button()
         end
     }
 
-	notifications.popup:connect_signal("mouse::leave", function()
+    notifications.popup:connect_signal("mouse::leave", function()
         notifications.popup.visible = false
     end)
 
-    -- Add hover effects
-    button:connect_signal("mouse::enter", function()
-        button.bg = theme.notifications.main_button_bg_focus
-        icon.opacity = 1
-        button.fg = theme.notifications.button_fg_focus
-    end)
-
-    button:connect_signal("mouse::leave", function()
-        button.bg = theme.notifications.main_button_bg
-        icon.opacity = 0.5
-        button.fg = theme.notifications.button_fg
-    end)
-
-    -- Add all button handlers
-    button:buttons(gears.table.join(
-        -- Left click to toggle
-        awful.button({}, 1, function()
-            if #notifications.history == 0 then return end
-            -- Reset scroll position when opening
-            if not notifications.popup.visible then
-                scroll_state.start_idx = 1
-                notifications.popup.widget = create_notification_list()
-            end
-            -- Position popup on current screen
-            notifications.popup.screen = mouse.screen
-            notifications.popup.visible = not notifications.popup.visible
-        end)
-    ))
-
     -- Update function
     function update_count()
-		gears.timer.start_new(0.1, function()
-            label.text = tostring(#notifications.history)
+        gears.timer.start_new(0.1, function()
+            set_button_text(tostring(#notifications.history))
             return false
         end)
     end

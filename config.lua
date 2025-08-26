@@ -31,8 +31,7 @@ config.notifications = {
     button_size = dpi(16), -- Size of the notification button in wibar
     entry_height = dpi(60), -- Height of each notification entry
     dont_store = {
-        "spotify",
-        ""
+        "spotify"
     }
 }
 
@@ -46,8 +45,6 @@ config.music_players = {
 config.music_widget_timeout = 60
 
 config.disabled_widgets = {
-    "music",
-    "notifications"
 }
 
 -- }}}
@@ -58,9 +55,14 @@ config.disabled_widgets = {
 -- Only for monitors wider than 16:9
 -- Some applications (like recording software) don't acknowledge the split
 config.split_ultrawide = true
-
+-- Path to store screenshots
 config.screenshot_path = "$HOME/Screenshots/"
+-- Interval to change the wallpaper to a new one
 config.wallpaper_interval = 600
+-- Idle time in seconds until screensaver is shown. -1 disables the screensaver
+config.screensaver_idle_time = 600
+-- Only show the first 5 tags by default, unless a higher tag is navigated to
+config.show_all_tags = false
 --}}}
 
 return config

@@ -39,7 +39,7 @@ function create_action_button(action, index)
     local button = create_image_button({
         image_path = action.icon,
         fallback_text = "⚡",
-        image_size = dpi(3),
+        image_size = dpi(30),
         padding = dpi(16),
         button_size = dpi(64),
         opacity = 0.6,
@@ -123,7 +123,7 @@ function create_shutdown_widget()
     return wibox.widget {
         {
             buttons,
-            margins = dpi(24),
+            margins = dpi(16),
             widget = wibox.container.margin
         },
         bg = theme.shutdown.bg,

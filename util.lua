@@ -145,13 +145,18 @@ function create_image_button(args)
     elseif image_path then
         content_widget = wibox.widget {
             {
-                image = image_path,
-                resize = true,
-                forced_width = image_size,
-                forced_height = image_size,
-                opacity = opacity,
-                widget = wibox.widget.imagebox,
-                id = 'icon'
+                {
+                    image = image_path,
+                    resize = true,
+                    forced_width = image_size,
+                    forced_height = image_size,
+                    opacity = opacity,
+                    widget = wibox.widget.imagebox,
+                    id = 'icon'
+                },
+                widget = wibox.container.place,
+                halign = 'center',
+                valign = 'center'
             },
             margins = padding,
             widget = wibox.container.margin
@@ -273,10 +278,10 @@ function create_labeled_image_button(args)
     -- Default values merged with provided args
     args = args or {}
     local image_path = args.image_path
-    local label_text = args.label_text or ""
-    local text_size = args.text_size or math.floor(image_size * 0.75)
     local fallback_text = args.fallback_text or "⬡"
     local image_size = args.image_size or dpi(24)
+    local label_text = args.label_text or ""
+    local text_size = args.text_size or math.floor(image_size * 0.75)
     local padding = args.padding or dpi(6)
     local opacity = args.opacity or 1.0
     local opacity_hover = args.opacity_hover or opacity or 1
@@ -317,18 +322,21 @@ function create_labeled_image_button(args)
         }
     end
 
-    -- Create label widget
+    -- Create label textbox widget
+    local label_textbox = wibox.widget {
+        text = label_text,
+        font = font_with_size(text_size),
+        align = 'left',
+        valign = 'center',
+        widget = wibox.widget.textbox,
+        id = 'label'
+    }
+
+    -- Create label widget container
     local label_widget = wibox.widget {
-		{
-	        text = label_text,
-	        font = font_with_size(text_size),
-	        align = 'left',
-	        valign = 'center',
-	        widget = wibox.widget.textbox,
-	        id = 'label'
-		},
-		fg = fg_color,
-		widget = wibox.container.background
+        label_textbox,
+        fg = fg_color,
+        widget = wibox.container.background
     }
 
     -- Create horizontal layout for image and label
@@ -369,17 +377,19 @@ function create_labeled_image_button(args)
     button:connect_signal("button::focus", function()
         button.bg = hover_bg
         button.shape_border_color = hover_border
-		label_widget.fg = hover_fg
-        local imagebox = button:get_children_by_id('icon')[1]
-        if imagebox then imagebox.opacity = opacity_hover end
+        label_widget.fg = hover_fg
+        if content_widget and content_widget.opacity ~= nil then
+            content_widget.opacity = opacity_hover
+        end
     end)
     
     button:connect_signal("button::unfocus", function()
         button.bg = bg_color
         button.shape_border_color = border_color
         label_widget.fg = fg_color
-        local imagebox = button:get_children_by_id('icon')[1]
-        if imagebox then imagebox.opacity = opacity end
+        if content_widget and content_widget.opacity ~= nil then
+            content_widget.opacity = opacity
+        end
     end)
 
     button:connect_signal("mouse::enter", function()
@@ -409,24 +419,29 @@ function create_labeled_image_button(args)
 
     button:buttons(gears.table.join(table.unpack(click_handlers)))
 
-    -- Add methods to update button properties
-    function button:update_image(new_image)
-        local imagebox = button:get_children_by_id('icon')[1]
-        if imagebox then
-            imagebox.image = new_image
+    -- Add methods to update button properties using direct references
+    -- (more reliable than searching by ID through nested widget hierarchy)
+    button.update_image = function(self, new_image)
+        if content_widget and content_widget.image ~= nil then
+            content_widget.image = new_image
         end
     end
 
-    function button:update_text(new_text)
-        local label = button:get_children_by_id('label')[1]
-        if label then
-            label.text = new_text
+    button.update_text = function(self, new_text)
+        if label_textbox then
+            label_textbox.text = new_text
         end
     end
 
-    function button:update_colors(new_bg, new_border)
-        button.bg = new_bg or bg_color
-        button.shape_border_color = new_border or border_color
+    button.update_fallback_text = function(self, new_fallback_text)
+        if content_widget and content_widget.text ~= nil then
+            content_widget.text = new_fallback_text
+        end
+    end
+
+    button.update_colors = function(self, new_bg, new_border)
+        self.bg = new_bg or bg_color
+        self.shape_border_color = new_border or border_color
     end
 
     return button
@@ -521,6 +536,118 @@ function table_contains(table, value)
       end
     end
     return false
+end
+
+local function serialize_value(v)
+    local t = type(v)
+    if t == "string" then
+        return string.format("%q", v)
+    elseif t == "number" then
+        return tostring(v)
+    elseif t == "boolean" then
+        return tostring(v)
+    elseif t == "table" then
+        -- Simple table serialization for arrays
+        local result = "{"
+        local first = true
+        for _, item in ipairs(v) do
+            if not first then
+                result = result .. ","
+            end
+            result = result .. "\n        " .. serialize_value(item)
+            first = false
+        end
+        if not first then
+            result = result .. "\n    "
+        end
+        result = result .. "}"
+        return result
+    else
+        return "nil"
+    end
+end
+
+-- Generic function to update a config value in the config file
+local function update_config_file(key, value)
+    local config_path = gears.filesystem.get_configuration_dir() .. "config.lua"
+
+    -- Read the current config file
+    local file = io.open(config_path, "r")
+    if not file then
+        naughty.notify({
+            preset = naughty.config.presets.critical,
+            title = "Config Error",
+            text = "Could not open config.lua for reading"
+        })
+        return false
+    end
+
+    local lines = {}
+    for line in file:lines() do
+        table.insert(lines, line)
+    end
+    file:close()
+
+    -- Find and update the specific config line
+    local pattern = "^(%s*config%." .. key .. "%s*=%s*)"
+    local updated = false
+
+    for i, line in ipairs(lines) do
+        local prefix = line:match(pattern)
+        if prefix then
+            -- Found the line, replace it with the new value
+            lines[i] = prefix .. serialize_value(value)
+            updated = true
+            break
+        end
+    end
+
+    if not updated then
+        -- If the key doesn't exist, add it before the return statement
+        for i = #lines, 1, -1 do
+            if lines[i]:match("^return config") then
+                table.insert(lines, i, "config." .. key .. " = " .. serialize_value(value))
+                updated = true
+                break
+            end
+        end
+    end
+
+    if not updated then
+        naughty.notify({
+            preset = naughty.config.presets.critical,
+            title = "Config Error",
+            text = "Could not find location to update config." .. key
+        })
+        return false
+    end
+
+    -- Write the updated config back
+    file = io.open(config_path, "w")
+    if not file then
+        naughty.notify({
+            preset = naughty.config.presets.critical,
+            title = "Config Error",
+            text = "Could not open config.lua for writing"
+        })
+        return false
+    end
+
+    for _, line in ipairs(lines) do
+        file:write(line .. "\n")
+    end
+    file:close()
+
+    return true
+end
+
+-- Helper function to save a config value both in memory and to file
+function save_config(key, value)
+    -- Update in memory
+    config[key] = value
+
+    -- Update in file
+    update_config_file(key, value)
 end
 
 return util

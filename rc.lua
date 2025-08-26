@@ -35,6 +35,7 @@ local calendar = load_widget("calendar")
 local switcher = load_widget("switcher")
 local shutdown = load_widget("shutdown")
 local notifications = load_widget("notifications")
+local updates = load_widget("updates")
 local music = load_widget("music")
 
 if appmenu then appmenu_init() end
@@ -98,7 +99,7 @@ do
 end
 -- }}}
 
-naughty.config.defaults.timeout = 0
+naughty.config.defaults.timeout = (notifications and 0 or config.notifications.timeout)
 
 --- {{{ App Menu
 
@@ -246,7 +247,8 @@ local launcher = create_image_button({
 })
 
 --awful.widget.launcher({ image = config_dir .. "theme-icons/launcher_icon.png", menu = mymainmenu})
-local notif_button = notifications and notifications.create_button() or make_spacer(dpi(5))
+local notif_button = notifications and notifications.create_button() or nil
+local updates_button = updates and updates.create_button() or nil
 add_hover_cursor(launcher)
 mylauncher = wibox.widget {
 	{
@@ -265,7 +267,9 @@ mylauncher = wibox.widget {
 				    align = "center",
 				    widget = wibox.container.place,
 				},
+                make_spacer(dpi(5)),
                 notif_button,
+                updates_button,
 				spacing = dpi(-2),
 				layout = wibox.layout.fixed.horizontal
 			},
@@ -352,6 +356,7 @@ end
 -- Re-set wallpaper when a screen's geometry changes (e.g. different resolution)
 screen.connect_signal("property::geometry", set_wallpaper)
 
+--{{ Add elements to each screen }}--
 awful.screen.connect_for_each_screen(function(s)
     -- Wallpaper
     set_wallpaper(s)
@@ -370,10 +375,38 @@ awful.screen.connect_for_each_screen(function(s)
     awful.button({ }, 4, function () awful.layout.inc( 1) end),
     awful.button({ }, 5, function () awful.layout.inc(-1) end)))
 
+    local function custom_taglist_filter(t, args)
+        -- If show_all_tags is true, show all tags
+        if config.show_all_tags then
+            return true
+        end
+
+        -- Always show tags 1-5
+        local tag_index = t.index
+        if tag_index and tag_index <= 5 then
+            return true
+        end
+
+        -- For tags 6-9, only show if they have clients or are selected
+        if tag_index and tag_index > 5 then
+            -- Check if tag has any clients
+            local has_clients = #t:clients() > 0
+
+            -- Check if tag is currently selected
+            local is_selected = t.selected
+
+            -- Show the tag if it has clients or is selected
+            return has_clients or is_selected
+        end
+
+        -- Default to showing the tag
+        return true
+    end
+
     -- Create a taglist widget
-   	s.mytaglist = awful.widget.taglist {
+    s.mytaglist = awful.widget.taglist {
         screen  = s,
-        filter  = awful.widget.taglist.filter.all,
+        filter  = custom_taglist_filter,  -- Use our custom filter instead of awful.widget.taglist.filter.all
         buttons = taglist_buttons,
         widget_template =
         {
@@ -424,46 +457,86 @@ awful.screen.connect_for_each_screen(function(s)
             bottom = dpi(5),
             widget = wibox.container.margin,
             update_callback = function(self, tg, index, objects)
-	           	local selected = false
-	           	for _, ta in pairs(awful.screen.focused().selected_tags) do
-	          	    if ta == tg then
-	                    selected = true
-	               	end
-	           	end
-	            
-	           	local background = self:get_children_by_id('background_role')[1]
-	           	local imagebox = self:get_children_by_id('icon_role')[1]
-	            
-	            -- Handle tag backgrounds
-                gears.timer.start_new(0.01, function()
-					if tg.urgent then
-	                    background.bg = gears.color.create_pattern({
-	                        type = "radial",
-	                        from = { dpi(9), dpi(9), 0 },    -- Starting circle: x, y, radius
-	                        to = { dpi(9), dpi(9), dpi(30) },     -- Ending circle: x, y, radius
-	                        stops = {
-	                            { 0, beautiful.taglist_urgent .. "88" },
-								{ 1, beautiful.taglist_urgent .. "28" }
-	                        }
-	                    })
-					end
-					return false
-                end)
-	            
+                local selected = false
+                for _, ta in pairs(awful.screen.focused().selected_tags) do
+                    if ta == tg then
+                        selected = true
+                    end
+                end
 
-	           	-- Update focus dot
-	           	if (tg:clients()[1] ~= nil) then
-					if (selected) then
-	                   	imagebox.image = taglist_dot_sel(dpi(10), beautiful.taglist_dot .. "f0")
-	               	else
-	                   	imagebox.image = taglist_dot_unsel(dpi(50), tg.urgent and beautiful.taglist_dot .. "ff" or beautiful.taglist_dot .. "a0")
-	               	end
-	           	else
-	               	imagebox.image = nil
-	           	end
-	       	end
-       	}
-   	}
+                local background = self:get_children_by_id('background_role')[1]
+                local imagebox = self:get_children_by_id('icon_role')[1]
+
+                -- Handle tag backgrounds
+                gears.timer.start_new(0.01, function()
+                    if tg.urgent then
+                        background.bg = gears.color.create_pattern({
+                            type = "radial",
+                            from = { dpi(9), dpi(9), 0 },    -- Starting circle: x, y, radius
+                            to = { dpi(9), dpi(9), dpi(30) },     -- Ending circle: x, y, radius
+                            stops = {
+                                { 0, beautiful.taglist_urgent .. "88" },
+                                { 1, beautiful.taglist_urgent .. "28" }
+                            }
+                        })
+                    end
+                    return false
+                end)
+
+                -- Update focus dot
+                if (tg:clients()[1] ~= nil) then
+                    if (selected) then
+                        imagebox.image = taglist_dot_sel(dpi(10), beautiful.taglist_dot .. "f0")
+                    else
+                        imagebox.image = taglist_dot_unsel(dpi(50), tg.urgent and beautiful.taglist_dot .. "ff" or beautiful.taglist_dot .. "a0")
+                    end
+                else
+                    imagebox.image = nil
+                end
+            end
+        }
+    }
+
+    local function get_toggle_arrow()
+        return config.show_all_tags and config_dir .. "theme-icons/left_arrow.png" or config_dir .. "theme-icons/right_arrow.png"
+    end
+
+    local function toggle_collapsed_tasklist(button)
+        save_config("show_all_tags", not config.show_all_tags)
+        -- Update all taglists
+        for s in screen do
+            for _, t in ipairs(s.tags) do
+                t:emit_signal("property::urgent")
+            end
+            local button = s.collapse_button
+            if button then
+                button:update_image(get_toggle_arrow())
+                button:emit_signal("mouse::leave")
+            end
+        end
+    end
+
+    s.collapse_button = create_image_button({
+        image_path = get_toggle_arrow(),
+        image_size = dpi(10),
+        padding = dpi(8),
+        opacity = 0.5,
+        opacity_hover = 1,
+        fg_color = theme.taglist_collapse_color,
+        hover_fg = theme.taglist_collapse_color_hover,
+        bg_color = theme.white .. "00",
+        hover_bg = theme.white .. "00",
+        border_color = theme.white .. "00",
+        hover_border = theme.white .. "00",
+        on_click = toggle_collapsed_tasklist,
+        id = 'button'
+    })
+    local toggle_collapsed_tasks = wibox.widget {
+        s.collapse_button,
+        align = "center",
+        valign = "center",
+        widget = wibox.container.background
+    }
 
     -- Create a tasklist widget
     s.mytasklist = awful.widget.tasklist {
@@ -642,7 +715,8 @@ awful.screen.connect_for_each_screen(function(s)
             mylauncher,
             make_spacer(dpi(8)),
             s.mytaglist,
-            make_spacer(10),
+            toggle_collapsed_tasks,
+            make_spacer(dpi(8)),
             create_divider(dpi(1), dpi(8)),
             make_spacer(dpi(10)),
             -- Tasklist
@@ -851,11 +925,13 @@ clientkeys = gears.table.join(
         	c.ontop = not c.ontop
         	c.floating = c.ontop
         	if (c.ontop) then
-		    	c.screen = screen[1]
+        	    local geo = c.screen.geometry
 		        c.x = 0
 		        c.y = 0
-		        c.width = full_screen_width
-		        c.height = full_screen_height
+		        local total_width = 0
+		        for s in screen do total_width = total_width + s.geometry.width end
+		        c.width = total_width
+		        c.height = geo.height
 		        set_focus_to_mouse()
             end
         end,
@@ -1105,6 +1181,20 @@ end)
 
 client.connect_signal("focus", function(c) c.border_color = beautiful.border_focus end)
 client.connect_signal("unfocus", function(c) c.border_color = beautiful.border_normal end)
+
+-- Update taglist when client are added/removed
+client.connect_signal("tagged", function(c)
+    -- Force taglist update when a client is tagged
+    for s in screen do
+        s.mytaglist:emit_signal("widget::updated")
+    end
+end)
+client.connect_signal("untagged", function(c)
+    -- Force taglist update when a client is untagged
+    for s in screen do
+        s.mytaglist:emit_signal("widget::updated")
+    end
+end)
 -- }}}
 
 -- {{{ Random Wallpapers
@@ -1146,28 +1236,86 @@ if #wallpaperList > 0 then
     -- Apply a random wallpaper every 10 minutes
     changeTime = config.wallpaper_interval -- interval
 
-    wallpaperTimer = timer { timeout = changeTime }
     local prevWallInt = -1
-    wallpaperTimer:connect_signal("timeout", function()
-        -- Seed the random generator
-        math.randomseed(os.time())
-        -- Select a random wallpaper that isn't the previous one
-        local newWallInt = -1
-        while(newWallInt == prevWallInt) do
-            newWallInt = math.random(1, #wallpaperList)
-        end
-		
-		local wallpaper = wallpaperList[newWallInt]
-        -- Set the wallpaper
-		if not wallpaper then
-			naughty.notify({text = "could not find wallpaper " .. wallpaper})
-		end
-        gears.wallpaper.tiled(wallpaper, s)
-    end)
-    -- Trigger the wallpaper function once on startup
-    wallpaperTimer:emit_signal("timeout")
+    local wallpaper_timer = gears.timer {
+        timeout = changeTime,
+        autostart = true,
+        call_now  = true,
+        callback = function()
+            -- Seed the random generator
+            math.randomseed(os.time())
+            -- Select a random wallpaper that isn't the previous one
+            local newWallInt = -1
+            while(newWallInt == prevWallInt) do
+                newWallInt = math.random(1, #wallpaperList)
+            end
 
-    -- initial start when rc.lua is first run
-    wallpaperTimer:start()
+            local wallpaper = wallpaperList[newWallInt]
+            -- Set the wallpaper
+            if not wallpaper then
+                naughty.notify({text = "could not find wallpaper " .. wallpaper})
+            end
+            gears.wallpaper.tiled(wallpaper, s)
+        end
+    }
 end
 -- }}}
+
+--[[
+local screensaver_list = scanDir(config_dir .. "screensavers/", {"scr"})
+
+if #screensaver_list > 0 and config.screensaver_idle_time > 0 then
+    local idle_time_ms = config.screensaver_idle_time * 60 * 1000
+    local triggered = false
+    local current_screensaver_pid = nil
+
+    awful.spawn.easy_async({"xset", "s", "off", "-dpms"}, function() end)
+
+    local function stop_screensaver()
+        if triggered and current_screensaver_pid then
+            awful.spawn("kill " .. current_screensaver_pid)
+            current_screensaver_pid = nil
+        end
+        triggered = false
+    end
+
+    local screensaver_timer = gears.timer {
+        timeout = 1,
+        autostart = true,
+        callback = function()
+            awful.spawn.easy_async({"xprintidle"}, function(stdout)
+                local idle = tonumber(tostring(stdout:gsub("%s+", ""))) or 0
+                if idle >= idle_time_ms then
+                    if not triggered then
+                        awful.spawn.easy_async_with_shell("wmctrl -l | egrep -c 'YouTube|My5|All 4'", function(stdout)
+                            local youtube_count = tonumber(stdout:match("%d+")) or 0
+                            if youtube_count == 0 then
+                                local screensaver_path = screensaver_list[math.random(#screensaver_list)]
+                                -- Get width of all screens
+                                local total_width = 0
+                		        for s in screen do total_width = total_width + s.geometry.width end
+
+                                awful.spawn("wine " .. screensaver_path .. " /s", {
+                                    floating = true,
+                                    ontop = true,
+                                    sticky = true,
+                                    x = 0,
+                                    y = 0,
+                                    maximized_vertical   = true,
+                                    maximized_horizontal = true,
+                                    width = total_width,
+                                    height = screen[1].geometry.height
+                                })
+                                triggered = true
+                            end
+                        end)
+                    end
+                else
+                    stop_screensaver()
+                end
+            end)
+        end
+    }
+
+    awesome.connect_signal("screen::lock", stop_screensaver)
+end ]]

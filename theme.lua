@@ -38,6 +38,7 @@ theme.font = "Gadugi Normal"
 theme.taglist_font_size = 12
 theme.tasklist_font_size = 10
 theme.notification_font_size = 12
+theme.update_entry_font_size = 12
 theme.textclock_date_font_size = 9
 theme.textclock_time_font_size = 11
 
@@ -83,6 +84,8 @@ theme.taglist_shape = tag_shape
 theme.taglist_shape_border_width = 1
 theme.taglist_shape_border_color = theme.white .. "20"
 theme.taglist_shape_border_color_focus = theme.white .. "40"
+theme.taglist_collapse_color = theme.white .. "99"
+theme.taglist_collapse_color_hover = theme.white .. "ff"
 
 -- Tasks
 theme.tasklist_shape = tag_shape
@@ -170,6 +173,25 @@ theme.notifications.notif_border = theme.light_gray .. "33"
 theme.notifications.notif_border_hover = theme.white .. "55"
 theme.notifications.button_border = theme.light_gray .. "44"
 theme.notifications.button_border_focus = theme.white .. "66"
+
+-- Package Updates Menu
+theme.updates = {}
+theme.updates.bg = theme.pitch_black .. "dd"
+theme.updates.entry_bg = theme.pitch_black .. "00"
+theme.updates.entry_bg_hover = theme.dark_gray .. "dd"
+theme.updates.preview = theme.pitch_black .. "00"
+theme.updates.close_button_bg = theme.dark_gray
+theme.updates.close_button_bg_focus = theme.gray
+theme.updates.button_bg = theme.dark_gray .. "aa"
+theme.updates.button_bg_focus = theme.gray .. "aa"
+theme.updates.main_button_bg = theme.black .. "00"
+theme.updates.main_button_bg_focus = theme.gray .. "aa"
+theme.updates.button_fg = theme.white .. "aa"
+theme.updates.button_fg_focus = theme.white .. "ff"
+theme.updates.entry_border = theme.light_gray .. "33"
+theme.updates.entry_border_hover = theme.white .. "55"
+theme.updates.button_border = theme.light_gray .. "44"
+theme.updates.button_border_focus = theme.white .. "66"
 
 -- Taglist Launcher
 theme.tglauncher = {}
