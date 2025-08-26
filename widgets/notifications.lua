@@ -15,6 +15,7 @@ local notifications = {}
 
 -- Notification storage
 notifications.history = {}
+notifications.hovered = false
 notifications.popup = nil
 notifications._label = nil
 notifications._cached_button = nil
@@ -79,9 +80,6 @@ local function add_notification(n)
     table.insert(notifications.history, 1, notification)
 
     -- Update the list widget if it exists and is visible
-    if notifications.popup and notifications.popup.visible then
-        notifications.popup.widget = create_notification_list()
-    end
     update_count()
 end
 
@@ -514,13 +512,24 @@ function create_notification_list(preview)
         end
     })
 
+    local no_notifications_text = wibox.widget {
+        {
+            text = "No notifications",
+            font = font_with_size(theme.notification_font_size - 1),
+            halign = "center",
+            widget = wibox.widget.textbox
+        },
+        margins = dpi(5),
+        widget = wibox.container.margin
+    }
+
     -- Combine list, clear button, and controls
     local list_widget = wibox.widget {
         list_layout,
         {
             {
                 {
-                    clear_all_button,
+                    #notifications.history > 0 and clear_all_button or no_notifications_text,
                     layout = wibox.layout.fixed.horizontal
                 },
                 halign = "left",
@@ -538,11 +547,18 @@ function create_notification_list(preview)
     main_layout.spacing = 0
 
     -- Add the list widget (with constraint)
-    main_layout:add(wibox.widget {
-        list_widget,
-        forced_width = config.notifications.max_width + dpi(10),
-        widget = wibox.container.constraint
-    })
+    if #notifications.history > 0 then
+        main_layout:add(wibox.widget {
+            list_widget,
+            forced_width = config.notifications.max_width + dpi(10),
+            widget = wibox.container.constraint
+        })
+    else
+        main_layout:add(wibox.widget {
+            list_widget,
+            widget = wibox.container.constraint
+        })
+    end
 
     -- Add right side container to main layout
     main_layout:add(notifications.preview_container)
@@ -568,6 +584,15 @@ function create_notification_list(preview)
 	return main_layout
 end
 
+local function test_not_hovered()
+    gears.timer.start_new(0.1, function()
+        if not notifications.hovered then
+            notifications.popup.visible = false
+        end
+        return false
+    end)
+end
+
 function notifications.create_button()
     local button = create_labeled_image_button({
         image_path = beautiful.notification_icon or config_dir .. "theme-icons/notification.png",
@@ -585,7 +610,6 @@ function notifications.create_button()
         hover_border = theme.notifications.button_border_focus,
         shape_radius = dpi(4),
         on_click = function()
-            if #notifications.history == 0 then return end
             -- Reset scroll position when opening
             if not notifications.popup.visible then
                 scroll_state.start_idx = 1
@@ -598,6 +622,14 @@ function notifications.create_button()
         id = "notification_button"
     })
     notifications.button = button
+
+    notifications.button:connect_signal("mouse::enter", function()
+        notifications.hovered = true
+    end)
+    notifications.button:connect_signal("mouse::leave", function()
+        notifications.hovered = false
+        test_not_hovered()
+    end)
 
     -- Create the popup
     notifications.popup = awful.popup {
@@ -620,8 +652,12 @@ function notifications.create_button()
         end
     }
 
+    notifications.popup:connect_signal("mouse::enter", function()
+        notifications.hovered = true
+    end)
     notifications.popup:connect_signal("mouse::leave", function()
-        notifications.popup.visible = false
+        notifications.hovered = false
+        test_not_hovered()
     end)
 
     -- Update function
@@ -630,6 +666,9 @@ function notifications.create_button()
             set_button_text(tostring(#notifications.history))
             return false
         end)
+        if notifications.popup and notifications.popup.visible then
+            notifications.popup.widget = create_notification_list()
+        end
     end
 
     -- Initial update

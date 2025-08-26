@@ -394,18 +394,13 @@ function create_update_list()
     local controls = wibox.widget {
         {
             {
-                {
-                    update_all_button,
-                    refresh_button,
-                    spacing = dpi(10),
-                    layout = wibox.layout.fixed.horizontal
-                },
-                halign = "center",
-                widget = wibox.container.place
+                update_all_button,
+                refresh_button,
+                spacing = dpi(10),
+                layout = wibox.layout.fixed.horizontal
             },
-            count_text,
-            spacing = dpi(5),
-            layout = wibox.layout.fixed.vertical
+            halign = "center",
+            widget = wibox.container.place
         },
         margins = dpi(10),
         widget = wibox.container.margin
@@ -414,16 +409,13 @@ function create_update_list()
     -- Main widget
     local main_widget = wibox.widget {
         #updates.packages > 0 and list_layout or wibox.widget {
-            {
-                text = "No updates available",
-                font = font_with_size(theme.update_entry_font_size),
-                halign = "center",
-                widget = wibox.widget.textbox
-            },
-            margins = dpi(20),
+        },
+        #updates.packages > 0 and controls or nil,
+        wibox.widget {
+            count_text,
+            margins = dpi(15),
             widget = wibox.container.margin
         },
-        controls,
         layout = wibox.layout.fixed.vertical,
         spacing = dpi(5)
     }
