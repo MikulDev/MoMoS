@@ -176,8 +176,9 @@ theme.notifications.button_border_focus = theme.white .. "66"
 
 -- Package Updates Menu
 theme.updates = {}
-theme.updates.bg = theme.pitch_black .. "dd"
-theme.updates.entry_bg = theme.pitch_black .. "00"
+theme.updates.bg = theme.pitch_black .. "bb"
+theme.updates.fg = theme.white .. "bb"
+theme.updates.entry_bg = theme.pitch_black .. "55"
 theme.updates.entry_bg_hover = theme.dark_gray .. "dd"
 theme.updates.preview = theme.pitch_black .. "00"
 theme.updates.close_button_bg = theme.dark_gray
