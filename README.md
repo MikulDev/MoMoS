@@ -1,4 +1,4 @@
-<p align="center"><img src="https://imgur.com/qZz4J5l.png" width=250></p>
+# MoMoS
 
 A lightweight tiling window manager with modern creature comforts and style, built on Awesome WM.
 
