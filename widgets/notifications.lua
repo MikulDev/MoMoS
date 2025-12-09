@@ -23,6 +23,8 @@ notifications.current_preview = nil
 notifications.preview_area = nil
 notifications.preview_container = nil
 
+local update_count_timer = nil
+
 -- Scrolling state
 local scroll_state = {
     start_idx = 1,
@@ -71,15 +73,13 @@ local function wrap_notification(n)
 end
 
 local function add_notification(n)
-    -- Create notification entry with the full notification object
     local notification = wrap_notification(n)
-
-	--if client.focus and notification.app_class == client.focus.class then return end
-    
-    -- Add to start of table
     table.insert(notifications.history, 1, notification)
 
-    -- Update the list widget if it exists and is visible
+    if #notifications.history > 100 then
+        table.remove(notifications.history)
+    end
+
     update_count()
 end
 
@@ -662,10 +662,16 @@ function notifications.create_button()
 
     -- Update function
     function update_count()
-        gears.timer.start_new(0.1, function()
+        if update_count_timer then
+            update_count_timer:stop()
+        end
+
+        update_count_timer = gears.timer.start_new(0.1, function()
             set_button_text(tostring(#notifications.history))
+            update_count_timer = nil
             return false
         end)
+
         if notifications.popup and notifications.popup.visible then
             notifications.popup.widget = create_notification_list()
         end
