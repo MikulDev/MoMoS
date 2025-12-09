@@ -6,6 +6,7 @@ local dpi = require("beautiful.xresources").apply_dpi
 local config = require("config")
 local util = require("util")
 local naughty = require("naughty")
+local rubato = require("lib.rubato")
 
 local config_dir = gears.filesystem.get_configuration_dir()
 local theme = load_util("theme")
@@ -100,13 +101,21 @@ local function update_package(pkg, widget_callback)
 
     -- Run update command with Zenity password prompt
     local command = string.format("yay -S %s --noconfirm", pkg.name)
-    local zenity_cmd = string.format(
-        "zenity --password --title='Package Update' | sudo -S %s",
+    local update_cmd = string.format(
+        config.terminal .. " -e sh -c \"%s\"",
         command
     )
 
-    local process = awful.spawn.easy_async_with_shell(zenity_cmd, function(stdout, stderr, reason, exit_code)
+    local process = awful.spawn.easy_async_with_shell(update_cmd, function(stdout, stderr, reason, exit_code)
         pkg.updating = false
+
+        -- Remove from process table
+        for i, p in ipairs(updates.update_processes) do
+            if p == process then
+                table.remove(updates.update_processes, i)
+                break
+            end
+        end
 
         if exit_code == 0 then
             -- Remove package from list
@@ -143,13 +152,13 @@ local function update_all_packages()
 
     -- Run full system update with Zenity password prompt
     local command = "yay -Syu --noconfirm"
-    local zenity_cmd = string.format(
+    local update_cmd = string.format(
         config.terminal .. " -e sh -c \"%s\"",
         command
     )
 
-    updates.popup.visible = false
-    awful.spawn.easy_async_with_shell(zenity_cmd, function(stdout, stderr, reason, exit_code)
+    updates_hide()
+    awful.spawn.easy_async_with_shell(update_cmd, function(stdout, stderr, reason, exit_code)
         updates.is_updating = false
 
         if exit_code == 0 then
@@ -384,40 +393,39 @@ function create_update_list()
 
     -- Package count label
     local count_text = wibox.widget {
-        text = string.format("%d packages available", #updates.packages),
-        font = font_with_size(theme.update_entry_font_size - 1),
-        halign = "center",
-        widget = wibox.widget.textbox
+        {
+            text = string.format("%d packages available", #updates.packages),
+            font = font_with_size(theme.update_entry_font_size - 1),
+            halign = "center",
+            widget = wibox.widget.textbox
+        },
+        fg = theme.updates.fg,
+        widget = wibox.container.background
     }
 
-    -- Bottom controls
-    local controls = wibox.widget {
+    local header = wibox.widget {
         {
-            {
-                update_all_button,
-                refresh_button,
-                spacing = dpi(10),
-                layout = wibox.layout.fixed.horizontal
-            },
-            halign = "center",
-            widget = wibox.container.place
+            #updates.packages > 0 and update_all_button or nil,
+            count_text,
+            #updates.packages > 0 and refresh_button or nil,
+            layout = wibox.layout.align.horizontal
         },
         margins = dpi(10),
         widget = wibox.container.margin
     }
 
+    local list_widget = wibox.widget {
+        list_layout,
+        bottom = dpi(12),
+        widget = wibox.container.margin
+    }
+
     -- Main widget
     local main_widget = wibox.widget {
-        #updates.packages > 0 and list_layout or wibox.widget {
-        },
-        #updates.packages > 0 and controls or nil,
-        wibox.widget {
-            count_text,
-            margins = dpi(15),
-            widget = wibox.container.margin
-        },
+        header,
+        #updates.packages > 0 and list_widget or nil,
         layout = wibox.layout.fixed.vertical,
-        spacing = dpi(5)
+        spacing = dpi(0)
     }
 
     -- Add scroll buttons
@@ -447,10 +455,33 @@ end
 local function test_not_hovered()
     gears.timer.start_new(0.1, function()
         if not updates.hovered then
-            updates.popup.visible = false
+            updates_hide()
         end
         return false
     end)
+end
+
+function updates_show()
+    awful.placement.top_left(updates.popup, {
+        margins = {
+            top = beautiful.wibar_height + dpi(5),
+            left = dpi(5)
+        },
+        parent = updates.popup.screen
+    })
+    updates.popup.visible = true
+end
+
+function updates_hide()
+    updates.popup.visible = false
+end
+
+local function toggle_visibility()
+    if updates.popup.visible then
+        updates_hide()
+    else
+        updates_show()
+    end
 end
 
 -- Create the updates button
@@ -476,7 +507,7 @@ function updates.create_button()
                 updates.popup.widget = create_update_list()
             end
             updates.popup.screen = mouse.screen
-            updates.popup.visible = not updates.popup.visible
+            toggle_visibility()
         end,
         id = "update_button"
     })
@@ -493,21 +524,13 @@ function updates.create_button()
     -- Create the popup
     updates.popup = awful.popup {
         widget = create_update_list(),
+        bg = theme.updates.bg,
         border_color = beautiful.border_focus,
         border_width = beautiful.border_width,
         ontop = true,
         visible = false,
         shape = function(cr, width, height)
             gears.shape.rounded_rect(cr, width, height, dpi(6))
-        end,
-        placement = function(d)
-            awful.placement.top_left(d, {
-                margins = {
-                    top = beautiful.wibar_height + dpi(5),
-                    left = dpi(5)
-                },
-                parent = mouse.screen
-            })
         end
     }
 
