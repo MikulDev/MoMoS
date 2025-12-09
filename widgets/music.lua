@@ -337,7 +337,6 @@ function music_widget.create()
         play_pause = play_pause_button
     }
 
-    -- Simplified update function
     function music_widget.update_widget()
         -- Check if we have a player
         if not music_widget.current_player then
@@ -346,16 +345,53 @@ function music_widget.create()
             return
         end
 
-        -- Get status, position, and metadata in series
-        awful.spawn.easy_async_with_shell(playerctl_cmd("status") .. " 2>/dev/null", function(status_stdout)
-            local status = status_stdout and status_stdout:match("^(.-)%s*$") or "Stopped"
+        -- Single command to get all data at once
+        local cmd = string.format([[
+                    player='%s'
+                    playerctl --player="$player" status 2>/dev/null && echo "---" || exit 1
+                    playerctl --player="$player" position 2>/dev/null && echo "---" || echo "0"
+                    playerctl --player="$player" metadata xesam:title 2>/dev/null && echo "---" || echo "Unknown"
+                    playerctl --player="$player" metadata xesam:artist 2>/dev/null && echo "---" || echo ""
+                    playerctl --player="$player" metadata mpris:length 2>/dev/null && echo "---" || echo "0"
+                    playerctl --player="$player" metadata mpris:artUrl 2>/dev/null || echo ""
+                    ]], music_widget.current_player)
 
-            -- If no status, player might be gone
-            if not status or status == "" then
+        awful.spawn.easy_async_with_shell(cmd, function(stdout)
+            -- Split output by separator
+            local parts = {}
+            local current_part = ""
+            for line in stdout:gmatch("[^\r\n]+") do
+                if line == "---" then
+                    table.insert(parts, current_part)
+                    current_part = ""
+                else
+                    if current_part ~= "" then
+                        current_part = current_part .. "\n" .. line
+                    else
+                        current_part = line
+                    end
+                end
+            end
+            -- Add the last part (artUrl has no separator after it)
+            if current_part ~= "" then
+                table.insert(parts, current_part)
+            end
+
+            -- If we don't have at least the status, player might be gone
+            if #parts < 1 or parts[1] == "" then
                 music_widget.current_player = nil
                 widget.visible = false
                 return
             end
+
+            -- Parse all the data
+            local status = parts[1] and parts[1]:match("^(.-)%s*$") or "Stopped"
+            local position = tonumber(parts[2] and parts[2]:match("^(.-)%s*$")) or 0
+            local title = parts[3] and parts[3]:match("^(.-)%s*$") or "Unknown"
+            local artist = parts[4] and parts[4]:match("^(.-)%s*$") or ""
+            local length = tonumber(parts[5] and parts[5]:match("^(.-)%s*$")) or 0
+            length = length / 1000000 -- Convert to seconds
+            local art_url = parts[6] and parts[6]:match("^(.-)%s*$") or ""
 
             music_widget.status = status
 
@@ -373,80 +409,57 @@ function music_widget.create()
                 end
             end
 
-            -- Get position
-            awful.spawn.easy_async_with_shell(playerctl_cmd("position") .. " 2>/dev/null", function(pos_stdout)
-                local position = tonumber(pos_stdout and pos_stdout:match("^(.-)%s*$")) or 0
+            -- Handle album art
+            local art_path = icon_dir .. "music_default.png"
 
-                -- Get title and artist
-                awful.spawn.easy_async_with_shell(playerctl_cmd("metadata xesam:title") .. " 2>/dev/null", function(title_stdout)
-                    local title = title_stdout and title_stdout:match("^(.-)%s*$") or "Unknown"
+            if art_url ~= "" then
+                if art_url:sub(1, 7) == "file://" then
+                    art_path = art_url:sub(8)
+                    music_widget.ui.album_art.image = art_path
+                elseif art_url:sub(1, 4) == "http" then
+                    -- Generate cache filename
+                    awful.spawn.easy_async_with_shell("echo '" .. art_url .. "' | md5sum | cut -d' ' -f1", function(file_hash)
+                        file_hash = file_hash:match("^(.-)%s*$")
+                        local cache_path = config_dir .. "album_art_cache/" .. file_hash .. ".jpg"
 
-                    awful.spawn.easy_async_with_shell(playerctl_cmd("metadata xesam:artist") .. " 2>/dev/null", function(artist_stdout)
-                        local artist = artist_stdout and artist_stdout:match("^(.-)%s*$") or ""
-
-                        -- Get length
-                        awful.spawn.easy_async_with_shell(playerctl_cmd("metadata mpris:length") .. " 2>/dev/null", function(length_stdout)
-                            local length = tonumber(length_stdout and length_stdout:match("^(.-)%s*$")) or 0
-                            length = length / 1000000 -- Convert to seconds
-
-                            -- Get album art
-                            awful.spawn.easy_async_with_shell(playerctl_cmd("metadata mpris:artUrl") .. " 2>/dev/null", function(art_stdout)
-                                local art_url = art_stdout and art_stdout:match("^(.-)%s*$") or ""
-                                local art_path = icon_dir .. "music_default.png"
-
-                                if art_url ~= "" then
-                                    if art_url:sub(1, 7) == "file://" then
-                                        art_path = art_url:sub(8)
-                                    elseif art_url:sub(1, 4) == "http" then
-                                        -- Generate cache filename
-                                        awful.spawn.easy_async_with_shell("echo '" .. art_url .. "' | md5sum | cut -d' ' -f1", function(file_hash)
-                                            file_hash = file_hash:match("^(.-)%s*$")
-                                            local cache_path = config_dir .. "album_art_cache/" .. file_hash .. ".jpg"
-
-                                            -- Download if not cached
-                                            awful.spawn.easy_async_with_shell("test -f '" .. cache_path .. "' || curl -s -m 5 -o '" .. cache_path .. "' '" .. art_url .. "'", function()
-                                                music_widget.ui.album_art.image = cache_path
-                                            end)
-                                        end)
-                                    else
-                                        art_path = art_url
-                                    end
-                                end
-
-                                -- If art path is already available, update immediately
-                                if art_path ~= icon_dir .. "music_default.png" then
-                                    music_widget.ui.album_art.image = art_path
-                                end
-
-                                -- Update UI elements
-                                music_widget.ui.title:set_markup(string.format('<span color="%s">%s</span>',
-                                    theme.music.title_fg or theme.music.fg,
-                                    gears.string.xml_escape(clip_text(title, 30))))
-
-                                music_widget.ui.artist:set_markup(string.format('<span color="%s">%s</span>',
-                                    theme.music.artist_fg or theme.music.fg,
-                                    gears.string.xml_escape(clip_text(artist, 30))))
-
-                                -- Update progress
-                                local percent = 0
-                                if length > 0 then
-                                    percent = (position / length) * 100
-                                end
-                                -- Don't update if paused and not skipping
-                                if not (status == "Paused" and math.abs(music_widget.position - percent) < 1.1) then
-                                    music_widget.position = percent
-                                    -- Update time display
-                                    local time_text = format_time(position) .. " / " .. format_time(length)
-                                    music_widget.ui.time:set_markup(string.format('<span color="%s">%s</span>',
-                                        theme.music.time_fg or theme.music.fg,
-                                        gears.string.xml_escape(time_text)))
-                                    music_widget.ui.progress:set_value(percent)
-                                end
-                            end)
+                        -- Download if not cached
+                        awful.spawn.easy_async_with_shell("test -f '" .. cache_path .. "' || curl -s -m 5 -o '" .. cache_path .. "' '" .. art_url .. "'", function()
+                            music_widget.ui.album_art.image = cache_path
                         end)
                     end)
-                end)
-            end)
+                else
+                    art_path = art_url
+                    music_widget.ui.album_art.image = art_path
+                end
+            else
+                music_widget.ui.album_art.image = art_path
+            end
+
+            -- Update UI elements
+            music_widget.ui.title:set_markup(string.format('<span color="%s">%s</span>',
+                theme.music.title_fg or theme.music.fg,
+                gears.string.xml_escape(clip_text(title, 30))))
+
+            music_widget.ui.artist:set_markup(string.format('<span color="%s">%s</span>',
+                theme.music.artist_fg or theme.music.fg,
+                gears.string.xml_escape(clip_text(artist, 30))))
+
+            -- Update progress
+            local percent = 0
+            if length > 0 then
+                percent = (position / length) * 100
+            end
+
+            -- Don't update if paused and not skipping
+            if not (status == "Paused" and math.abs(music_widget.position - percent) < 1.1) then
+                music_widget.position = percent
+                -- Update time display
+                local time_text = format_time(position) .. " / " .. format_time(length)
+                music_widget.ui.time:set_markup(string.format('<span color="%s">%s</span>',
+                    theme.music.time_fg or theme.music.fg,
+                    gears.string.xml_escape(time_text)))
+                music_widget.ui.progress:set_value(percent)
+            end
         end)
     end
 
