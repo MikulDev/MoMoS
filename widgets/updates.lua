@@ -6,7 +6,6 @@ local dpi = require("beautiful.xresources").apply_dpi
 local config = require("config")
 local util = require("util")
 local naughty = require("naughty")
-local rubato = require("lib.rubato")
 
 local config_dir = gears.filesystem.get_configuration_dir()
 local theme = load_util("theme")

@@ -6,7 +6,6 @@ local cairo = require("lgi").cairo
 local wibox = require("wibox")
 local config = require("config")
 local dpi = require("beautiful.xresources").apply_dpi
-local rubato = require("lib.rubato")
 
 local config_dir = gears.filesystem.get_configuration_dir()
 local theme = dofile(config_dir .. "theme.lua")
