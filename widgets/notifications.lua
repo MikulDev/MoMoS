@@ -1,3 +1,19 @@
+--[[
+    Notification History System for Awesome WM
+
+    This module provides:
+    - A notification history viewer with scrolling and preview
+    - Persistent storage (survives restarts)
+    - Proper notification lifecycle management (no gaps)
+    - Click-to-focus functionality
+
+    Key design decisions:
+    - Notifications are allowed to expire/destroy naturally
+    - Only serializable data is stored (no live object references)
+    - History is saved to disk as JSON for persistence
+    - App identification is stored separately for jump-to-client
+]]
+
 local awful = require("awful")
 local beautiful = require("beautiful")
 local gears = require("gears")
@@ -10,32 +26,9 @@ local util = require("util")
 local config_dir = gears.filesystem.get_configuration_dir()
 local theme = load_util("theme")
 
--- Initialize module
-local notifications = {}
-
--- Notification storage
-notifications.history = {}
-notifications.hovered = false
-notifications.popup = nil
-notifications._label = nil
-notifications._cached_button = nil
-notifications.current_preview = nil
-notifications.preview_area = nil
-notifications.preview_container = nil
-
-local update_count_timer = nil
-
--- Scrolling state
-local scroll_state = {
-    start_idx = 1,
-    items_per_page = 5,
-}
-
-local function set_button_text(text)
-    if notifications.button then
-        notifications.button:update_text(text)
-    end
-end
+--------------------------------------------------------------------------------
+-- Debug Log
+--------------------------------------------------------------------------------
 
 do
     local in_error = false
@@ -49,16 +42,154 @@ do
     end)
 end
 
--- Format timestamp into a 12-hour clock time
-local function format_timestamp(timestamp)
-    return os.date("%I:%M %p", timestamp):gsub("^0", "")  -- Remove leading zero from hour
+--------------------------------------------------------------------------------
+-- Module State
+--------------------------------------------------------------------------------
+
+local notifications = {
+    history = {},
+    popup = nil,
+    button = nil,
+    hovered = false,
+    current_preview = nil,
+}
+
+-- File path for persistent storage
+local history_file = gears.filesystem.get_cache_dir() .. "notification_history.json"
+
+-- Scroll state
+local scroll_state = {
+    start_idx = 1,
+    items_per_page = 5,
+}
+
+-- Debounce timer for saving
+local save_timer = nil
+
+-- Close button hover state (local to avoid global)
+local close_button_hovered = false
+
+--------------------------------------------------------------------------------
+-- Persistence Functions
+--------------------------------------------------------------------------------
+
+--- Serialize history to JSON and save to disk
+local function save_history()
+    -- Cancel any pending save
+    if save_timer then
+        save_timer:stop()
+        save_timer = nil
+    end
+
+    -- Debounce: wait 1 second before actually saving
+    save_timer = gears.timer.start_new(1, function()
+        local file = io.open(history_file, "w")
+        if file then
+            -- Only save serializable fields
+            local data = {}
+            for _, entry in ipairs(notifications.history) do
+                table.insert(data, {
+                    title = entry.title,
+                    text = entry.text,
+                    icon = entry.icon,
+                    timestamp = entry.timestamp,
+                    app_class = entry.app_class,
+                    app_name = entry.app_name,
+                })
+            end
+
+            -- Simple JSON encoding (Awesome doesn't have json by default)
+            local json = "["
+            for i, entry in ipairs(data) do
+                if i > 1 then json = json .. "," end
+                json = json .. string.format(
+                    '{"title":%q,"text":%q,"icon":%q,"timestamp":%d,"app_class":%q,"app_name":%q}',
+                    entry.title or "",
+                    entry.text or "",
+                    entry.icon or "",
+                    entry.timestamp or 0,
+                    entry.app_class or "",
+                    entry.app_name or ""
+                )
+            end
+            json = json .. "]"
+
+            file:write(json)
+            file:close()
+        end
+        save_timer = nil
+        return false
+    end)
 end
 
-local function wrap_notification(n)
-    -- Get the app class from the first client if available
+--- Load history from disk
+local function load_history()
+    local file = io.open(history_file, "r")
+    if not file then return end
+
+    local content = file:read("*all")
+    file:close()
+
+    if not content or content == "" then return end
+
+    -- Simple JSON parsing for our specific format
+    notifications.history = {}
+
+    for entry_json in content:gmatch('{[^}]+}') do
+        local entry = {}
+        entry.title = entry_json:match('"title":"([^"]*)"') or ""
+        entry.text = entry_json:match('"text":"([^"]*)"') or ""
+        entry.icon = entry_json:match('"icon":"([^"]*)"') or ""
+        entry.timestamp = tonumber(entry_json:match('"timestamp":(%d+)')) or 0
+        entry.app_class = entry_json:match('"app_class":"([^"]*)"') or ""
+        entry.app_name = entry_json:match('"app_name":"([^"]*)"') or ""
+
+        -- Unescape basic escape sequences
+        entry.title = entry.title:gsub("\\n", "\n"):gsub('\\"', '"')
+        entry.text = entry.text:gsub("\\n", "\n"):gsub('\\"', '"')
+
+        table.insert(notifications.history, entry)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Helper Functions
+--------------------------------------------------------------------------------
+
+--- Format timestamp to 12-hour clock
+local function format_timestamp(timestamp)
+    return os.date("%I:%M %p", timestamp):gsub("^0", "")
+end
+
+--- Update the notification count on the button
+local function update_count()
+    if notifications.button then
+        notifications.button:update_text(tostring(#notifications.history))
+    end
+end
+
+--- Refresh the popup widget if visible
+local function refresh_popup()
+    if notifications.popup and notifications.popup.visible then
+        notifications.popup.widget = notifications.create_list()
+    end
+end
+
+--- Extract notification data into a serializable table
+local function extract_notification_data(n)
     local app_class = ""
+    local app_name = ""
+
+    -- Try to get app info from clients
     if n.clients and #n.clients > 0 then
-        app_class = n.clients[1].class or ""
+        local client = n.clients[1]
+        app_class = client.class or ""
+        app_name = client.name or ""
+    end
+
+    -- Fall back to app_name from notification
+    if app_name == "" then
+        app_name = n.app_name or ""
     end
     
     return {
@@ -66,111 +197,108 @@ local function wrap_notification(n)
         text = n.message or n.text or "",
         icon = n.app_icon or n.icon or "",
         timestamp = os.time(),
-        notification = n,
-        actions = n.actions,
-        app_class = app_class  -- Store the app class
+        app_class = app_class,
+        app_name = app_name,
     }
 end
 
-local function add_notification(n)
-    local notification = wrap_notification(n)
-    table.insert(notifications.history, 1, notification)
+--- Check if a notification should be stored based on config
+local function should_store_notification(n)
+    if not config.notifications or not config.notifications.dont_store then
+        return true
+    end
 
-    if #notifications.history > 100 then
+    for _, entry in ipairs(config.notifications.dont_store) do
+        -- Don't store if "no name" is blocked and notif has no owner
+        if entry == "" and (not n.clients or #n.clients == 0) then
+            return false
+        end
+
+        -- Don't store if notif's owner matches the blocklist
+        if n.clients then
+            for _, c in ipairs(n.clients) do
+                if c.class then
+                    if entry == "" then
+                        if c.class == entry then return false end
+                    elseif string.find(c.class:lower(), entry:lower()) then
+                        return false
+                    end
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+--- Add a notification to history
+local function add_to_history(n)
+    if not should_store_notification(n) then
+        return
+    end
+
+    local entry = extract_notification_data(n)
+    table.insert(notifications.history, 1, entry)
+
+    -- Limit history size
+    local max_history = (config.notifications and config.notifications.max_history) or 100
+    while #notifications.history > max_history do
         table.remove(notifications.history)
     end
 
     update_count()
+    refresh_popup()
+    save_history()
 end
 
-local function remove_notification(n)
-	for i, notif in ipairs(notifications.history) do
-        if notif == n or notif.notification == n then
-            table.remove(notifications.history, i)
-            update_count()
+--- Remove a notification from history by index
+local function remove_from_history(index)
+    if index and index > 0 and index <= #notifications.history then
+        table.remove(notifications.history, index)
+        update_count()
+        save_history()
+        return true
+    end
+    return false
+end
+
+--- Find and focus a client by app class/name
+local function jump_to_app(entry)
+    if not entry then return false end
+
+    local app_class = entry.app_class or ""
+    local app_name = entry.app_name or ""
+    local found = false
+
+    -- Search for matching client
+    for _, c in ipairs(client.get()) do
+        local class_match = app_class ~= "" and c.class and
+                           c.class:lower():find(app_class:lower())
+        local name_match = app_name ~= "" and c.name and
+                          c.name:lower():find(app_name:lower())
+
+        if class_match or name_match then
+            c:jump_to()
+            found = true
             break
         end
     end
-end
 
-local function jump_to_client(n)
-    local current_pos = mouse.coords()
-    local jumped = false
-    local app_name = ""
-
-    -- Only attempt to process clients if they exist
-    if n.clients and #n.clients > 0 then
-        -- Try to get app name/class for later use if needed
-        if n.clients[1].class then
-            app_name = n.clients[1].class:lower()
-        elseif n.clients[1].name then
-            app_name = n.clients[1].name:lower()
-        end
-
-        -- Try to jump to each client safely
-        for _, c in ipairs(n.clients) do
-            local status, err = pcall(function()
-                if c and c.valid then  -- Check if client is valid
-                    c.urgent = true
-                    if jumped then
-                        c:activate {
-                            context = "client.jumpto"
-                        }
-                    else
-                        c:jump_to()
-                        jumped = true
-                    end
-                end
-            end)
-
-            if not status then
-                debug_log("[Error jumping to client]: " .. tostring(err))
-            end
-         end
+    -- If no client found, try to launch the app
+    if not found and app_class ~= "" then
+        awful.spawn.with_shell(app_class:lower())
     end
 
-    -- If we couldn't jump to any client, try to launch the app
-    if not jumped and app_name ~= "" then
-        -- Try to launch the application from systray
-        awful.spawn.with_shell(app_name)
-    end
-
-    -- Restore mouse position
-    mouse.coords{x = current_pos.x, y = current_pos.y}
+    return found
 end
 
-close_hover = false
-function select_notif_under_mouse()
-	if notifications.popup and notifications.popup.visible then
-		-- Wait for UI to refresh
-        gears.timer.start_new(0.01, function()
-            if mouse.current_widget then
-				-- Hover widget
-				mouse.current_widget:emit_signal("mouse::enter")
-				-- Wait for close button to be visible
-				if close_hover then
-					gears.timer.start_new(0.01, function()
-						-- Hover close button
-						local cbutton = mouse.current_widget:get_children_by_id("close_button")[1]
-						if cbutton then
-						    cbutton:emit_signal("mouse::enter")
-                        end
-					end)
-				end
-            end
-            return false
-        end)
-    end
-end
+--------------------------------------------------------------------------------
+-- Widget Creation
+--------------------------------------------------------------------------------
 
-local function close_notif(n)
-	    remove_notification(n)
-		if #notifications.history == 0 then notifications.popup.visible = false return end
-        notifications.popup.widget = create_notification_list()
-		select_notif_under_mouse()
-	end
-
-local function create_notification_widget(n)
+--- Create a single notification widget for the list
+local function create_notification_widget(entry, index)
+    -- Close button
     local close_button = create_image_button({
         image_path = config_dir .. "theme-icons/close.png",
         image_size = dpi(16),
@@ -183,19 +311,24 @@ local function create_notification_widget(n)
         hover_bg = theme.notifications.close_button_bg_focus,
         hover_border = theme.notifications.button_border_focus,
         shape_radius = dpi(0),
-        on_click = function() close_notif(n) end,
+        on_click = function()
+            remove_from_history(index)
+            if #notifications.history == 0 then
+                notifications.popup.visible = false
+            else
+                refresh_popup()
+            end
+        end,
         id = "close_button"
     })
 
-    -- Track hovering the notification close button
     close_button:connect_signal("mouse::enter", function()
-        close_hover = true
+        close_button_hovered = true
     end)
     close_button:connect_signal("mouse::leave", function()
-        close_hover = false
+        close_button_hovered = false
     end)
 
-    -- Container for close button that's initially invisible
     local close_container = wibox.widget {
         {
             close_button,
@@ -205,24 +338,25 @@ local function create_notification_widget(n)
         },
         halign = "left",
         valign = "center",
+        visible = false,
         widget = wibox.container.place
     }
-    close_container.visible = false
 
-    local app_class = wibox.widget {
-        text = n.app_class or "",
+    -- App class label
+    local app_class_widget = wibox.widget {
+        text = entry.app_class or "",
         font = font_with_size(theme.notification_font_size - 2),
         halign = "right",
         valign = "top",
         widget = wibox.widget.textbox
     }
 
-    -- Create the content with modified layout
+    -- Content layout
     local content = wibox.widget {
         -- Icon
         {
             {
-                image = n.icon,
+                image = entry.icon,
                 resize = true,
                 forced_width = config.notifications.icon_size,
                 forced_height = config.notifications.icon_size,
@@ -233,37 +367,32 @@ local function create_notification_widget(n)
         },
         -- Text content
         {
-            -- Top row with title and app class
+            -- Title row
             {
                 nil,
                 {
-                    -- Title (now with forced width to prevent overlap)
-                    markup = "<b>" .. n.title .. "</b>",
+                    markup = "<b>" .. gears.string.xml_escape(entry.title) .. "</b>",
                     font = font_with_size(theme.notification_font_size - 1),
                     align = "left",
                     forced_height = dpi(theme.notification_font_size * 1.75),
                     widget = wibox.widget.textbox,
-                    id = "notif_title"
                 },
-                app_class,
+                app_class_widget,
                 expand = "inside",
                 layout = wibox.layout.align.horizontal
             },
-            -- Bottom row with message and timestamp
+            -- Message row
             {
                 nil,
-                -- Notif text
                 {
-                    text = n.text,
+                    text = entry.text,
                     font = theme.notification_font,
                     align = "left",
                     forced_height = dpi(theme.notification_font_size * 1.75),
                     widget = wibox.widget.textbox,
-                    id = "notif_message"
                 },
-                -- Notif timestamp
                 {
-                    text = format_timestamp(n.timestamp),
+                    text = format_timestamp(entry.timestamp),
                     font = font_with_size(theme.notification_font_size - 2),
                     widget = wibox.widget.textbox
                 },
@@ -278,6 +407,7 @@ local function create_notification_widget(n)
         layout = wibox.layout.fixed.horizontal
     }
 
+    -- Background container
     local bg_container = wibox.widget {
         {
             {
@@ -287,12 +417,12 @@ local function create_notification_widget(n)
             },
             fg = theme.notifications.button_fg,
             bg = theme.notifications.notif_bg,
-            widget = wibox.container.background,
             shape = function(cr, width, height)
                 gears.shape.rounded_rect(cr, width, height, dpi(6))
             end,
             shape_border_width = dpi(1),
             shape_border_color = theme.notifications.notif_border,
+            widget = wibox.container.background,
             id = "notif_background"
         },
         top = dpi(10),
@@ -302,97 +432,95 @@ local function create_notification_widget(n)
         widget = wibox.container.margin
     }
 
-    -- Main container with overlay
-    local w = wibox.widget {
+    -- Stack layout for overlay
+    local widget = wibox.widget {
         bg_container,
         close_container,
         layout = wibox.layout.stack
     }
 
-    w:buttons(gears.table.join(
+    -- Click handlers
+    widget:buttons(gears.table.join(
         awful.button({}, 1, function()
-            if n.notification and close_hover == false then
-                jump_to_client(n.notification)
-                n.notification:destroy()
-                remove_notification(n)
+            if not close_button_hovered then
+                jump_to_app(entry)
                 notifications.popup.visible = false
             end
         end),
         awful.button({}, 3, function()
-            close_notif(n)
+            remove_from_history(index)
+            if #notifications.history == 0 then
+                notifications.popup.visible = false
+            else
+                refresh_popup()
+            end
         end)
     ))
 
-    add_hover_cursor(w)
- 
-    -- Show/hide close button and change background on hover
-    w:connect_signal("mouse::enter", function()
+    add_hover_cursor(widget)
+
+    -- Hover effects
+    widget:connect_signal("mouse::enter", function()
         close_container.visible = true
         local background = bg_container:get_children_by_id("notif_background")[1]
-        background.bg = theme.notifications.notif_bg_hover
-        background.shape_border_color = theme.notifications.notif_border_hover
+        if background then
+            background.bg = theme.notifications.notif_bg_hover
+            background.shape_border_color = theme.notifications.notif_border_hover
+        end
     end)
-    w:connect_signal("mouse::leave", function()
+
+    widget:connect_signal("mouse::leave", function()
         close_container.visible = false
         local background = bg_container:get_children_by_id("notif_background")[1]
-        background.bg = theme.notifications.notif_bg
-        background.shape_border_color = theme.notifications.notif_border
+        if background then
+            background.bg = theme.notifications.notif_bg
+            background.shape_border_color = theme.notifications.notif_border
+        end
     end)
 
-    return w
+    return widget, entry
 end
 
--- Create the notification list widget
-function create_notification_list(preview)
-    local list_layout = wibox.layout.fixed.vertical{
-        spacing = 0
+--- Create the preview panel widget
+local function create_preview_panel()
+    local preview_content = wibox.widget {
+        id = "preview_content",
+        layout = wibox.layout.fixed.vertical,
     }
 
-    -- Calculate items per page based on max_height and entry_height
-    scroll_state.items_per_page = math.floor(
-        (config.notifications.max_height - dpi(20)) / config.notifications.entry_height
-    )
-
-    -- Create preview area
-    if not notifications.preview_area then
-        notifications.preview_area = wibox.widget {
+    local preview_area = wibox.widget {
+        {
+            -- Separator
             {
-                -- Left side with full-height separator
                 {
-                    {
-                        wibox.widget.base.make_widget(),
-                        forced_width = dpi(1),
-                        bg = theme.notifications.notif_border,
-                        widget = wibox.container.background
-                    },
-                    top = dpi(15),
-                    bottom = dpi(15),
-                    widget = wibox.container.margin
+                    wibox.widget.base.make_widget(),
+                    forced_width = dpi(1),
+                    bg = theme.notifications.notif_border,
+                    widget = wibox.container.background
                 },
-                -- Right side with centered preview content
-                {
-                    {
-                        id = "preview_content",
-                        layout = wibox.layout.fixed.vertical,
-                    },
-                    halign = "center",
-                    valign = "center",
-                    widget = wibox.container.place
-                },
-                spacing = dpi(10),
-                layout = wibox.layout.fixed.horizontal
+                top = dpi(15),
+                bottom = dpi(15),
+                widget = wibox.container.margin
             },
-            strategy = "max",
-            widget = wibox.container.constraint,
-            visible = false
-        }
-    end
+            -- Content
+            {
+                preview_content,
+                halign = "center",
+                valign = "center",
+                widget = wibox.container.place
+            },
+            spacing = dpi(10),
+            layout = wibox.layout.fixed.horizontal
+        },
+        strategy = "max",
+        visible = false,
+        widget = wibox.container.constraint
+    }
 
-    -- Create a constraint container that will handle the width only
-    notifications.preview_container = wibox.widget {
+    local preview_container = wibox.widget {
         {
             nil,
-            notifications.preview_area,
+            preview_area,
             nil,
             expand = "inside",
             layout = wibox.layout.align.vertical
@@ -402,96 +530,102 @@ function create_notification_list(preview)
         widget = wibox.container.constraint
     }
 
-    local function set_preview(preview)
-        local preview_content = notifications.preview_area:get_children_by_id("preview_content")[1]
-        preview_content:reset()
-        preview_content:add(preview)
-        notifications.preview_area.visible = true
-        notifications.preview_container.visible = true
-    end
+    return {
+        area = preview_area,
+        container = preview_container,
+        content = preview_content,
 
-	-- Function to update preview
-    local function update_preview(n)
-        if notifications.current_preview == n then
-            return
-        end
+        show = function(self, entry)
+            if not entry then return end
 
-        notifications.current_preview = n
-        local content = wibox.widget {
-            -- Heading with icon and title
-            {
+            local content_widget = wibox.widget {
+                -- Header
                 {
                     {
-                        image = n.icon,
-                        resize = true,
-                        forced_width = dpi(48),
-                        forced_height = dpi(48),
-                        widget = wibox.widget.imagebox,
+                        {
+                            image = entry.icon,
+                            resize = true,
+                            forced_width = dpi(48),
+                            forced_height = dpi(48),
+                            widget = wibox.widget.imagebox,
+                        },
+                        valign = "center",
+                        widget = wibox.container.place
                     },
-                    valign = "center",
-                    widget = wibox.container.place
+                    {
+                        markup = "<b>" .. gears.string.xml_escape(entry.title or "") .. "</b>",
+                        align = "left",
+                        widget = wibox.widget.textbox
+                    },
+                    spacing = dpi(10),
+                    layout = wibox.layout.fixed.horizontal
                 },
+                -- Full text
                 {
-                    markup = "<b>" .. (n.title or "") .. "</b>",
+                    text = entry.text,
                     align = "left",
+                    wrap = "word",
                     widget = wibox.widget.textbox
                 },
-                spacing = dpi(10),
-                layout = wibox.layout.fixed.horizontal
-            },
-            -- Full message text
-            {
-                text = n.text,
-                align = "left",
-                wrap = "word",
-                widget = wibox.widget.textbox
-            },
-            spacing = dpi(8),
-            layout = wibox.layout.fixed.vertical
-        }
+                spacing = dpi(8),
+                layout = wibox.layout.fixed.vertical
+            }
 
-        set_preview(content)
-    end
+            self.content:reset()
+            self.content:add(content_widget)
+            self.area.visible = true
+            self.container.visible = true
+            notifications.current_preview = entry
+        end,
 
-    if preview then
-        set_preview(preview)
-    end
+        hide = function(self)
+            self.content:reset()
+            self.area.visible = false
+            self.container.visible = false
+            notifications.current_preview = nil
+        end,
+    }
+end
 
-    -- Function to clear preview
-    local function clear_preview()
-        notifications.current_preview = nil
-        local preview_content = notifications.preview_area:get_children_by_id("preview_content")[1]
-        preview_content:reset()
-        notifications.preview_area.visible = false
-        notifications.preview_container.visible = false
-    end
+--- Create the notification list widget
+function notifications.create_list()
+    local list_layout = wibox.layout.fixed.vertical()
+    list_layout.spacing = 0
 
-    -- Create notification widgets with hover behavior
-    local visible_widgets = {}
-    local end_idx = math.min(scroll_state.start_idx + scroll_state.items_per_page - 1, #notifications.history)
+    -- Calculate visible items
+    scroll_state.items_per_page = math.floor(
+        (config.notifications.max_height - dpi(20)) / config.notifications.entry_height
+    )
+
+    local preview_panel = create_preview_panel()
+
+    -- Create notification widgets
+    local end_idx = math.min(
+        scroll_state.start_idx + scroll_state.items_per_page - 1,
+        #notifications.history
+    )
+
     for i = scroll_state.start_idx, end_idx do
-        local n = notifications.history[i]
-        local w = create_notification_widget(n)
+        local entry = notifications.history[i]
+        local widget = create_notification_widget(entry, i)
         
-        -- Add hover behavior for preview
-        w:connect_signal("mouse::enter", function()
-            update_preview(n)
+        -- Preview on hover
+        widget:connect_signal("mouse::enter", function()
+            preview_panel:show(entry)
         end)
-        w:connect_signal("mouse::leave", function()
-            clear_preview()
+        widget:connect_signal("mouse::leave", function()
+            preview_panel:hide()
         end)
         
-        list_layout:add(w)
-        table.insert(visible_widgets, w)
+        list_layout:add(widget)
     end
 
-    -- Create clear all button
-    local clear_all_button = create_labeled_image_button({
-        image_path = config_dir .. "theme-icons/close.png",
-        label_text = "All",
+    -- Clear all button
+    local clear_all_button = create_image_button({
+        image_path = config_dir .. "theme-icons/clear.png",
         text_size = 11,
-        image_size = dpi(16),
-        padding = dpi(8),
+        image_size = dpi(20),
+        padding = dpi(6),
         opacity = 0.5,
         opacity_hover = 1,
         bg_color = theme.notifications.button_bg,
@@ -504,15 +638,14 @@ function create_notification_list(preview)
         on_click = function()
             notifications.history = {}
             notifications.current_preview = nil
-            if notifications.popup then
-                notifications.popup.widget = create_notification_list()
-            end
             update_count()
+            save_history()
             notifications.popup.visible = false
         end
     })
 
-    local no_notifications_text = wibox.widget {
+    -- Empty state
+    local no_notifications = wibox.widget {
         {
             text = "No notifications",
             font = font_with_size(theme.notification_font_size - 1),
@@ -523,81 +656,102 @@ function create_notification_list(preview)
         widget = wibox.container.margin
     }
 
-    -- Combine list, clear button, and controls
-    local list_widget = wibox.widget {
-        list_layout,
+    -- Header body
+    local header_body = #notifications.history > 0 and wibox.widget
+    {
+        clear_all_button,
         {
-            {
-                {
-                    #notifications.history > 0 and clear_all_button or no_notifications_text,
-                    layout = wibox.layout.fixed.horizontal
-                },
-                halign = "left",
-                widget = wibox.container.place
-            },
-            margins = dpi(10),
-            widget = wibox.container.margin
+            text = "Notifications",
+            align = "center",
+            widget = wibox.widget.textbox
         },
-        layout = wibox.layout.fixed.vertical,
-        spacing = dpi(5)
+        spacing = -dpi(32),
+        fill_space = true,
+        layout = wibox.layout.fixed.horizontal
+    }
+    or no_notifications
+
+    -- Header with clear button or empty state
+    local header = wibox.widget {
+        header_body,
+        top = dpi(10),
+        left = dpi(10),
+        right = dpi(10),
+        widget = wibox.container.margin
     }
 
-    -- Create the final layout
+    -- List widget with footer
+    local list_widget = wibox.widget
+    {
+        {
+            header,
+            list_layout,
+            layout = wibox.layout.fixed.vertical,
+            spacing = dpi(5)
+        },
+        bottom = dpi(10),
+        widget = wibox.container.margin
+    }
+
+    -- Main horizontal layout
     local main_layout = wibox.layout.fixed.horizontal()
     main_layout.spacing = 0
 
-    -- Add the list widget (with constraint)
-    if #notifications.history > 0 then
-        main_layout:add(wibox.widget {
-            list_widget,
-            forced_width = config.notifications.max_width + dpi(10),
-            widget = wibox.container.constraint
-        })
-    else
-        main_layout:add(wibox.widget {
-            list_widget,
-            widget = wibox.container.constraint
-        })
-    end
+    -- Add list
+    main_layout:add(wibox.widget {
+        list_widget,
+        forced_width = #notifications.history > 0
+            and config.notifications.max_width + dpi(10)
+            or nil,
+        widget = wibox.container.constraint
+    })
 
-    -- Add right side container to main layout
-    main_layout:add(notifications.preview_container)
+    -- Add preview panel
+    main_layout:add(preview_panel.container)
 
+    -- Scroll handlers
     main_layout:buttons(gears.table.join(
-        -- Scroll up
-        awful.button({}, 4, function()
-            if notifications.popup.visible and scroll_state.start_idx > 1 then
-                local new_idx = math.max(0, scroll_state.start_idx - 1)
-                scroll_to(new_idx)
+        awful.button({}, 4, function()  -- Scroll up
+            if scroll_state.start_idx > 1 then
+                scroll_state.start_idx = math.max(1, scroll_state.start_idx - 1)
+                refresh_popup()
             end
         end),
-        -- Scroll down
-        awful.button({}, 5, function()
-			local last_start_index = #notifications.history - scroll_state.items_per_page + 1
-            if notifications.popup.visible and scroll_state.start_idx < last_start_index then
-                local new_idx = math.min(last_start_index, scroll_state.start_idx + 1)
-                scroll_to(new_idx)
+        awful.button({}, 5, function()  -- Scroll down
+            local max_start = math.max(1, #notifications.history - scroll_state.items_per_page + 1)
+            if scroll_state.start_idx < max_start then
+                scroll_state.start_idx = math.min(max_start, scroll_state.start_idx + 1)
+                refresh_popup()
             end
         end)
     ))
 
-	return main_layout
+    return main_layout
 end
 
+--------------------------------------------------------------------------------
+-- Main Button and Popup
+--------------------------------------------------------------------------------
+
+--- Test if popup should close (not hovered)
 local function test_not_hovered()
     gears.timer.start_new(0.1, function()
-        if not notifications.hovered then
+        if not notifications.hovered and notifications.popup then
             notifications.popup.visible = false
         end
         return false
     end)
 end
 
+--- Create the notification button and popup
 function notifications.create_button()
+    -- Load saved history
+    load_history()
+
     local button = create_labeled_image_button({
         image_path = beautiful.notification_icon or config_dir .. "theme-icons/notification.png",
         image_size = config.notifications.button_size,
-        label_text = "0",
+        label_text = tostring(#notifications.history),
         text_size = 12,
         padding = dpi(3),
         opacity = 0.5,
@@ -610,30 +764,30 @@ function notifications.create_button()
         hover_border = theme.notifications.button_border_focus,
         shape_radius = dpi(4),
         on_click = function()
-            -- Reset scroll position when opening
             if not notifications.popup.visible then
                 scroll_state.start_idx = 1
-                notifications.popup.widget = create_notification_list()
+                notifications.popup.widget = notifications.create_list()
             end
-            -- Position popup on current screen
             notifications.popup.screen = mouse.screen
             notifications.popup.visible = not notifications.popup.visible
         end,
         id = "notification_button"
     })
+
     notifications.button = button
 
-    notifications.button:connect_signal("mouse::enter", function()
+    -- Hover handling for button
+    button:connect_signal("mouse::enter", function()
         notifications.hovered = true
     end)
-    notifications.button:connect_signal("mouse::leave", function()
+    button:connect_signal("mouse::leave", function()
         notifications.hovered = false
         test_not_hovered()
     end)
 
-    -- Create the popup
+    -- Create popup
     notifications.popup = awful.popup {
-        widget = create_notification_list(),
+        widget = notifications.create_list(),
         border_color = beautiful.border_focus,
         border_width = beautiful.border_width,
         ontop = true,
@@ -652,6 +806,7 @@ function notifications.create_button()
         end
     }
 
+    -- Hover handling for popup
     notifications.popup:connect_signal("mouse::enter", function()
         notifications.hovered = true
     end)
@@ -660,77 +815,33 @@ function notifications.create_button()
         test_not_hovered()
     end)
 
-    -- Update function
-    function update_count()
-        if update_count_timer then
-            update_count_timer:stop()
-        end
-
-        update_count_timer = gears.timer.start_new(0.1, function()
-            set_button_text(tostring(#notifications.history))
-            update_count_timer = nil
-            return false
-        end)
-
-        if notifications.popup and notifications.popup.visible then
-            notifications.popup.widget = create_notification_list()
-        end
-    end
-
-    -- Initial update
-    update_count()
-
-    local layout = wibox.widget {
+    return wibox.widget {
         button,
         margins = dpi(4),
         widget = wibox.container.margin
     }
-
-    return layout
 end
 
--- Update count on notification dismissed
-naughty.connect_signal("destroyed", update_count)
+--------------------------------------------------------------------------------
+-- Notification Signal Handlers
+--------------------------------------------------------------------------------
 
--- Add notification to map upon display
+-- Handle new notifications - store data and let notification display normally
 naughty.connect_signal("added", function(n)
-    for _, entry in ipairs(config.notifications.dont_store) do
-        -- Don't store if "no name" is blocked and notif has no owner
-        if entry == "" and #n.clients == 0 then
-            return
-        end
-        -- Don't store if notif's owner is in the "don't store" list
-        for _, c in ipairs(n.clients) do
-            if entry == "" then
-                if c.class == entry then return end
-            elseif string.find(c.class:lower(), entry:lower()) then
-                return
-            end
-        end
-    end
-    -- Add notification to tray
-    add_notification(n)
+    add_to_history(n)
 end)
 
--- Change mouse controls for notificaions
+-- Custom display handler (optional title formatting)
 naughty.connect_signal("request::display", function(n)
-	local function format_title(title)
-		return string.format("<span font = \"%s\"><b>%s</b></span>", beautiful.font, title)
-	end
-
-	-- Store original title setter
-    local orig_title_setter = n.set_title or n.title
-    
-    -- Override title setter
-    n.set_title = function(self, new_title)
-        local formatted_title = format_title(new_title)
-        orig_title_setter(self, formatted_title)
+    local function format_title(title)
+        return string.format('<span font="%s"><b>%s</b></span>', beautiful.font, title)
     end
     
-    -- Format initial title
+    -- Format title
     n.title = format_title(n.title)
 
-	local box = naughty.layout.box {
+    -- Create notification box with default template
+    local box = naughty.layout.box {
         notification = n,
         widget_template = {
             {
@@ -742,90 +853,53 @@ naughty.connect_signal("request::display", function(n)
                                 naughty.widget.title,
                                 naughty.widget.message,
                                 spacing = dpi(5),
-                                layout  = wibox.layout.fixed.vertical,
+                                layout = wibox.layout.fixed.vertical,
                             },
                             fill_space = true,
-                            spacing    = dpi(18),
-                            layout     = wibox.layout.fixed.horizontal,
+                            spacing = dpi(18),
+                            layout = wibox.layout.fixed.horizontal,
                         },
                         spacing = dpi(10),
-                        layout  = wibox.layout.fixed.vertical,
+                        layout = wibox.layout.fixed.vertical,
                     },
                     margins = beautiful.notification_margin,
-                    widget  = wibox.container.margin,
+                    widget = wibox.container.margin,
                 },
-                id     = "background_role",
+                id = "background_role",
                 widget = naughty.container.background,
             },
             strategy = "max",
-            width    = beautiful.notification_max_width,
-            widget   = wibox.container.constraint,
+            width = beautiful.notification_max_width,
+            widget = wibox.container.constraint,
         }
     }
 
-	if config.notifications.timeout then
-        gears.timer.start_new(config.notifications.timeout, function()
-            if box and not box._private.is_destroyed then
-                box.visible = false
-                box.maximum_height = 0
-            end
-            return false
-        end)
+    -- Store reference to client info for jump-to functionality
+    local app_class = ""
+    local app_name = ""
+    if n.clients and #n.clients > 0 then
+        app_class = n.clients[1].class or ""
+        app_name = n.clients[1].name or ""
+    elseif n.app_name then
+        app_name = n.app_name
     end
 
+    -- Click handlers
     if box then
         box.buttons = gears.table.join(
-            -- Left-click triggers notification action
+            -- Left-click: jump to app and dismiss
             awful.button({}, 1, function()
-                -- action 2 = dismissed by user (triggers)
-                n:destroy(2)
-                jump_to_client(n)
-                remove_notification(n)
+                -- Find matching entry to get stored app info
+                local entry = {app_class = app_class, app_name = app_name}
+                jump_to_app(entry)
+                n:destroy(naughty.notification_closed_reason.dismissed_by_user)
             end),
-            -- Right-click dismisses notification
+            -- Right-click: just dismiss
             awful.button({}, 3, function()
-                -- action 1 = expired (no trigger)
-                n:destroy(1)
-                remove_notification(n)
-            end))
+                n:destroy(naughty.notification_closed_reason.expired)
+            end)
+        )
     end
 end)
-
--- Function to safely update popup widget
-function scroll_to(new_start_idx)
-    scroll_state.start_idx = new_start_idx
-    -- Store current preview state
-    local prev_preview = notifications.current_preview
-
-    local temp_popup = awful.popup {
-        x = notifications.popup.x,
-        y = notifications.popup.y,
-        widget = create_notification_list(prev_preview),
-        visible = false,
-        ontop = true,
-    }
-
-    -- Use a timer to ensure the widget is initialized
-    gears.timer.start_new(0.01, function()
-        -- Update the actual popup
-        notifications.popup.widget = temp_popup.widget
-
-        -- Clean up temporary popup
-        temp_popup = nil
-
-        -- Restore preview if needed
-        if prev_preview then
-            notifications.current_preview = prev_preview
-            local preview_content = notifications.preview_area:get_children_by_id("preview_content")[1]
-            if preview_content then
-                preview_content:emit_signal("widget::redraw_needed")
-            end
-        end
-
-        -- Update hover state
-        select_notif_under_mouse()
-        return false
-    end)
-end
 
 return notifications

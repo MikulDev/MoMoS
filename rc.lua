@@ -99,7 +99,7 @@ do
 end
 -- }}}
 
-naughty.config.defaults.timeout = (notifications and 0 or config.notifications.timeout)
+--naughty.config.defaults.timeout = config.notifications.timeout--(notifications and 0 or config.notifications.timeout)
 
 --- {{{ App Menu
 
