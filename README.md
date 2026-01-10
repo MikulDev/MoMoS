@@ -29,18 +29,24 @@ A lightweight tiling window manager with modern creature comforts and style, bui
 
 ## Required Extras
 List of required external programs for MoMoS to run properly:
-- **Zenity**: Simple API for creating dialog GUIs. Used for running programs with sudo in the application launcher
-- **PlayerCTL**: Universal music player API. Music controls will not work without it
+- **Zenity** (AUR: `zenity`)<br>
+Simple API for creating dialog GUIs. Used for running programs with sudo in the application launcher
+- **PlayerCTL** (AUR: `playerctl`)<br>
+Universal music player API. Music controls will not work without it
 
 ## Recommended Extras
 A list of additional applications for the best experience:
-- **Picom** (Jonaburg Build): Lightweight compositor that adds transparency and animation effects
+- **Picom** (Jonaburg Fork)
+    - Lightweight compositor that adds transparency and animation effects
     - You will have to build it yourself, but it's pretty easy: https://github.com/jonaburg/picom
-    - The "extras" folder contains a good default config, which you can put into ~/.config/picom/
+    - The "extras" folder contains a good default config, which you can put into `~/.config/picom/`
 
 ## Setup
-- Copy all of the files in this repository (except the "extras" folder) into your AwesomeWM config directory (~/.config/awesome/)
-- Configure your desired settings in the config.lua file (especially the "Default Applications" section)
+- Install Awesome WM *(**VERY IMPORTANT** to use the Git version!)*:<br>
+  `yay -S awesome-git`
+- Git clone this repository into your AwesomeWM config directory:<br>
+  `git clone https://github.com/MikulDev/MoMoS.git ~/.config/awesome/`
+- Configure your desired settings in the `config.lua` file (especially the "Default Applications" section)
 - Restart Awesome WM
 - **You're good to go!**
 
