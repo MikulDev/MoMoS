@@ -177,7 +177,7 @@ theme.notifications.button_border_focus = theme.white .. "66"
 -- Package Updates Menu
 theme.updates = {}
 theme.updates.bg = theme.pitch_black .. "bb"
-theme.updates.fg = theme.white .. "bb"
+theme.updates.fg = theme.white .. "aa"
 theme.updates.entry_bg = theme.pitch_black .. "55"
 theme.updates.entry_bg_hover = theme.dark_gray .. "dd"
 theme.updates.preview = theme.pitch_black .. "00"
@@ -206,7 +206,7 @@ theme.clock.button_bg_focus = theme.gray .. "55"
 theme.clock.button_border = theme.light_gray .. "00"
 theme.clock.button_border_focus = theme.white .. "44"
 
--- Music widget
+-- Music Widget
 theme.music = {}
 theme.music.bg = theme.dark_gray .. "00"
 theme.music.fg = theme.white .. "ff"
@@ -218,6 +218,28 @@ theme.music.progress_fg = theme.white .. "bb"
 theme.music.title_fg = theme.white .. "ff"
 theme.music.artist_fg = theme.white .. "aa"
 theme.music.time_fg = theme.white .. "aa"
+
+-- Volume Widget
+theme.volume = {}
+theme.volume.bg = theme.pitch_black .. "dd"
+theme.volume.fg = theme.white .. "aa"
+theme.volume.fg_title = theme.white .. "dd"
+theme.volume.fg_muted = theme.white .. "55"
+theme.volume.border = "#3C3C3C" .. "dd"
+theme.volume.separator = "#3C3C3C" .. "dd"
+theme.volume.border_focus = "#89b4fa"
+theme.volume.button_bg = theme.dark_gray .. "00"
+theme.volume.button_bg_focus = theme.gray .. "55"
+theme.volume.button_border = theme.light_gray .. "00"
+theme.volume.button_border_focus = theme.white .. "44"
+theme.volume.slider_bg = theme.light_gray .. "33"
+theme.volume.slider_fg = theme.light_gray .. "88"
+theme.volume.slider_border = theme.light_gray .. "88"
+theme.volume.slider_handle = theme.dark_gray .. "ff"
+theme.volume.slider_handle_border = theme.white .. "55"
+theme.volume.app_bg = theme.dark_gray .. "66"
+theme.volume.app_bg_hover = theme.gray .. "55"
+theme.volume.app_border = theme.light_gray .. "55"
 
 -- There are other variable sets
 -- overriding the default one when

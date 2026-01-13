@@ -37,10 +37,12 @@ local shutdown = load_widget("shutdown")
 local notifications = load_widget("notifications")
 local updates = load_widget("updates")
 local music = load_widget("music")
+local volume = load_widget("volume")
 
-if appmenu then appmenu_init() end
-if shutdown then shutdown_init() end
+if appmenu then appmenu.init() end
+if shutdown then shutdown.init() end
 if calendar then calendar_init() end
+if volume then volume.init() end
 
 -- Config settings
 local config = require("config")
@@ -100,30 +102,6 @@ end
 -- }}}
 
 --naughty.config.defaults.timeout = config.notifications.timeout--(notifications and 0 or config.notifications.timeout)
-
---- {{{ App Menu
-
--- Create the app menu popup
-if appmenu then
-appmenu_data.popup = awful.popup {
-    widget = appmenu_create(),
-    border_color = beautiful.border_focus,
-    border_width = beautiful.border_width,
-    placement = awful.placement.centered,
-    ontop = true,
-    visible = false,
-    hide_on_right_click = true,
-    shape = function(cr, width, height)
-        gears.shape.rounded_rect(cr, width, height, 8)
-    end,
-    minimum_width = dpi(400),
-    maximum_width = dpi(400),
-    maximum_height = dpi(600)
-}
-end
-
---- }}}
-
 
 -- {{{ Drawing functions for wibar
 -- Makes an empty space widget with the given width
@@ -599,52 +577,16 @@ awful.screen.connect_for_each_screen(function(s)
     }
 
 	-- Create a textclock widget
-    s.mytextclock = create_image_button({
-        widget = wibox.widget {
-            {
-                {
-                    {
-                        {
-                            format = string.format(
-                                '<span foreground="%s">%%a, %%b %%d</span>',
-                                theme.clock.fg
-                            ),
-                            font = theme.textclock_date_font,
-                            widget = wibox.widget.textclock
-                        },
-                        top = dpi(-1),
-                        widget = wibox.container.margin
-                    },
-                    halign = "right",
-                    widget = wibox.container.place,
-                },
-                {
-                    {
-                        format = string.format(
-                            '<span foreground="%s">%%I:%%M %%p</span>',
-                            theme.clock.fg
-                        ),
-                        font = theme.textclock_time_font,
-                        widget = wibox.widget.textclock
-                    },
-                    halign = "right",
-                    widget = wibox.container.place,
-                },
-                layout = wibox.layout.align.vertical
-            },
-            left = dpi(5),
-            right = dpi(5),
-            widget = wibox.container.margin
-        },
+    s.mytextclock = calendar.create_button({
+        fg = theme.clock.fg,
+        date_font = theme.textclock_date_font,
+        time_font = theme.textclock_time_font,
         padding = dpi(3),
         bg_color = theme.clock.button_bg,
         border_color = theme.clock.button_border,
         hover_bg = theme.clock.button_bg_focus,
         hover_border = theme.clock.button_border_focus,
         shape_radius = dpi(4),
-        on_click = function()
-            if calendar then calendar.toggle() end
-        end
     })
 
     if calendar then
@@ -663,22 +605,45 @@ awful.screen.connect_for_each_screen(function(s)
 
 	-- Create systray
 	if s == screen.primary then
+        -- Init volume icon
+        local volume_widget = nil
+        if volume then
+            volume_widget = wibox.widget {
+                volume.create_button(),
+                top = dpi(4),
+                bottom = dpi(4),
+                left = dpi(6),
+                right = dpi(6),
+                widget = wibox.container.margin
+            }
+        end
+        -- Add option icons to right of systray
+        local option_widgets = wibox.widget {
+            create_divider(dpi(1), dpi(8)),
+            volume_widget,
+            layout = wibox.layout.fixed.horizontal
+        }
+        -- Create systray container
 	    local systray_container = wibox.widget {
 	        {
-	            s.mysystray,
-	            top = dpi(13),
-	            bottom = dpi(13),
-	            left = dpi(10),
-	            right = dpi(10),
-	            widget = wibox.container.margin
-	        },
+	            {
+                    s.mysystray,
+    	            top = dpi(13),
+    	            bottom = dpi(13),
+    	            left = dpi(10),
+    	            right = dpi(10),
+    	            widget = wibox.container.margin
+    	        },
+                option_widgets,
+                spacing = dpi(0),
+                layout = wibox.layout.fixed.horizontal
+            },
 	        bg = beautiful.bg_systray,
 	        shape = function(cr, width, height)
 	            gears.shape.rounded_rect(cr, width, height, dpi(10))
 	        end,
 	        shape_border_width = dpi(1),
 	        shape_border_color = beautiful.border_focus .. "aa",
-	        visible = false,
 	        widget = wibox.container.background
 	    }
 	    systray_widget = systray_container
@@ -694,6 +659,7 @@ awful.screen.connect_for_each_screen(function(s)
 		systray_widget = nil
 	end
 
+	-- Init music widget
     if s == screen.primary and music then
         music_widget = wibox.widget {
             music.create(),
@@ -886,13 +852,13 @@ awful.key({ modkey }, "l",
 -- Menubar
 if appmenu then
     globalkeys = gears.table.join(globalkeys,
-    awful.key({ modkey }, "d", appmenu_toggle,
+    awful.key({ modkey }, "d", appmenu.toggle,
 	   {description = "show application menu", group = "launcher"}))
 end
 
 if shutdown then
     globalkeys = gears.table.join(globalkeys,
-    awful.key({ modkey, "Control"   }, "q", shutdown_toggle,
+    awful.key({ modkey, "Control"   }, "q", shutdown.show,
         {description = "open power menu", group = "awesome"}))
 end
 
@@ -1170,10 +1136,7 @@ end)
 
 -- Enable sloppy focus, so that focus follows mouse.
 client.connect_signal("mouse::enter", function(c)
-    if (client.focus ~= c 
-		and not switcher_data.is_open 
-        and (appmenu == nil or not appmenu_data.wibox.visible)
-		and (shutdown == nil or not shutdown_data.wibox.visible))
+    if (client.focus ~= c)
 	then
         c:emit_signal("request::activate", "mouse_enter", {raise = false})
     end

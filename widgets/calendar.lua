@@ -6,6 +6,8 @@ local naughty = require("naughty")
 local dpi = require("beautiful.xresources").apply_dpi
 local util = require("util")
 
+local popup_widget = require("popup_widget")
+
 local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
 
@@ -111,7 +113,7 @@ end
 
 -- Create custom calendar widget
 local calendar = {
-    hovered = false
+    _popup_controller = nil,  -- Reference to popup_widget controller
 }
 
 -- Functions to change months
@@ -177,8 +179,6 @@ function calendar.update_grid()
     local current_date = os.date("*t")
     local days_in_month = get_days_in_month(calendar.current_date.month, calendar.current_date.year)
     local first_day = get_first_day_of_month(calendar.current_date.month, calendar.current_date.year)
-    -- Remove this line that was causing the offset:
-    -- first_day = first_day == 1 and 7 or first_day - 1
 
     -- Calculate number of rows needed
     local num_rows = math.ceil((days_in_month + first_day - 1) / 7)
@@ -188,59 +188,68 @@ function calendar.update_grid()
 
     -- Add weekday headers
     for i, widget in ipairs(weekday_widgets) do
-    calendar.days_grid:add(widget)
+        calendar.days_grid:add(widget)
     end
-
-    -- Add days of the month
-    local day_number = 1
 
     -- Fill in empty cells before the first day
     for i = 1, first_day - 1 do
-    calendar.days_grid:add(wibox.widget.base.empty_widget())
+        calendar.days_grid:add(wibox.widget.base.empty_widget())
     end
 
     -- Get real current date for highlighting
     local real_current_date = os.date("*t")
     local is_current_month = real_current_date.month == calendar.current_date.month
-    and real_current_date.year == calendar.current_date.year
+        and real_current_date.year == calendar.current_date.year
 
-    -- Then add the days of the month
+    -- Add the days of the month
     for day = 1, days_in_month do
-    local is_current_day = is_current_month and day == real_current_date.day
-    calendar.days_grid:add(create_day_widget(day, is_current_day))
+        local is_current_day = is_current_month and day == real_current_date.day
+        calendar.days_grid:add(create_day_widget(day, is_current_day))
     end
 
     -- Fill remaining cells to complete the grid
     local total_cells = (num_rows + 1) * 7  -- +1 for header row
     local remaining = total_cells - (days_in_month + first_day - 1) - 7  -- -7 for header row
     for i = 1, remaining do
-    calendar.days_grid:add(wibox.widget.base.empty_widget())
+        calendar.days_grid:add(wibox.widget.base.empty_widget())
     end
 end
 
+-- Toggle calendar visibility (now delegates to popup_controller)
 function calendar.toggle()
-    if calendar.popup.visible then
-        calendar.popup.visible = false
+    if calendar._popup_controller then
+        -- Update calendar data before showing
+        if not calendar._popup_controller.is_visible() then
+            calendar.current_date = os.date("*t")
+            calendar.update_header()
+            calendar.update_grid()
+        end
+        calendar._popup_controller.toggle()
     else
-        -- Update calendar data
-        calendar.current_date = os.date("*t")
-        calendar.update_header()
-        calendar.update_grid()
-        -- Render the calendar for proper sizing
-        calendar.popup.visible = true
-        calendar.popup.visible = false
-
-        -- Position after a slight delay to ensure rendering
-        gears.timer.start_new(0.01, function()
-            -- Calculate position relative to the screen's geometry
-            local widget_screen = mouse.screen
-            if not widget_screen then return false end
-
-            calendar.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - calendar.popup.width - dpi(10)
-            calendar.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
+        -- Fallback to old behavior if no controller set
+        if calendar.popup.visible then
+            calendar.popup.visible = false
+        else
+            -- Update calendar data
+            calendar.current_date = os.date("*t")
+            calendar.update_header()
+            calendar.update_grid()
+            -- Render the calendar for proper sizing
             calendar.popup.visible = true
-            return false
-        end)
+            calendar.popup.visible = false
+
+            -- Position after a slight delay to ensure rendering
+            gears.timer.start_new(0.01, function()
+                -- Calculate position relative to the screen's geometry
+                local widget_screen = mouse.screen
+                if not widget_screen then return false end
+
+                calendar.popup.x = widget_screen.geometry.x + widget_screen.geometry.width - calendar.popup.width - dpi(10)
+                calendar.popup.y = widget_screen.geometry.y + beautiful.wibar_height + dpi(10)
+                calendar.popup.visible = true
+                return false
+            end)
+        end
     end
 end
 
@@ -249,40 +258,40 @@ function calendar_init()
     -- Store current date
     calendar.current_date = os.date("*t")
 
-	-- Create navigation buttons
+    -- Create navigation buttons
     local prev_button = create_image_button({
-	    image_path = calendar_icons.left_arrow,
-	    image_size = dpi(12),
-	    padding = dpi(10),
-	    opacity = 0.5,
-	    opacity_hover = 1,
-	    bg_color = theme.calendar.button_bg,
-	    border_color = theme.calendar.button_border,
-	    hover_bg = theme.calendar.button_bg_focus,
-	    hover_border = theme.calendar.button_border_focus,
-	    shape_radius = dpi(6),
-	    on_click = function() 
-	        calendar.prev_month()
-	    end
-	})
-	
-	local next_button = create_image_button({
-	    image_path = calendar_icons.right_arrow,
-	    image_size = dpi(12),
-	    padding = dpi(10),
-	    opacity = 0.5,
-	    opacity_hover = 1,
-	    bg_color = theme.calendar.button_bg,
-	    border_color = theme.calendar.button_border,
-	    hover_bg = theme.calendar.button_bg_focus,
-	    hover_border = theme.calendar.button_border_focus,
-	    shape_radius = dpi(6),
-	    on_click = function() 
-	        calendar.next_month()
-	    end
-	})
+        image_path = calendar_icons.left_arrow,
+        image_size = dpi(12),
+        padding = dpi(10),
+        opacity = 0.5,
+        opacity_hover = 1,
+        bg_color = theme.calendar.button_bg,
+        border_color = theme.calendar.button_border,
+        hover_bg = theme.calendar.button_bg_focus,
+        hover_border = theme.calendar.button_border_focus,
+        shape_radius = dpi(6),
+        on_click = function()
+            calendar.prev_month()
+        end
+    })
 
-	-- Create header widget with navigation buttons
+    local next_button = create_image_button({
+        image_path = calendar_icons.right_arrow,
+        image_size = dpi(12),
+        padding = dpi(10),
+        opacity = 0.5,
+        opacity_hover = 1,
+        bg_color = theme.calendar.button_bg,
+        border_color = theme.calendar.button_border,
+        hover_bg = theme.calendar.button_bg_focus,
+        hover_border = theme.calendar.button_border_focus,
+        shape_radius = dpi(6),
+        on_click = function()
+            calendar.next_month()
+        end
+    })
+
+    -- Create header widget with navigation buttons
     calendar.header_widget = wibox.widget {
         {
             prev_button,
@@ -341,20 +350,6 @@ function calendar_init()
         }
     }
 
-    calendar.popup:connect_signal("mouse::enter", function()
-        calendar.hovered = true
-    end)
-
-    calendar.popup:connect_signal("mouse::leave", function()
-        calendar.hovered = false
-        gears.timer.start_new(0.1, function()
-            if not calendar.hovered then
-                calendar.popup.visible = false
-            end
-            return false
-        end)
-    end)
-
     -- Update everything
     calendar.update_header()
     calendar.update_grid()
@@ -362,20 +357,84 @@ function calendar_init()
     return calendar
 end
 
-function calendar.attach(widget)
-    widget:connect_signal("mouse::enter", function()
-        calendar.hovered = true
-    end)
+-- Attach a button widget to the calendar with standardized popup behavior
+-- This replaces the old calendar.attach() function
+function calendar.attach(button_widget)
+    -- Create popup controller with standardized behavior
+    calendar._popup_controller = popup_widget.create({
+        button = button_widget,
+        popup = calendar.popup,
+        margin = dpi(10),  -- 10px padding from screen edges
+        position = "top_right",
+        hide_delay = 0.1,
+        on_show = function()
+            -- Update calendar data when showing
+            calendar.current_date = os.date("*t")
+            calendar.update_header()
+            calendar.update_grid()
+        end,
+    })
 
-    widget:connect_signal("mouse::leave", function()
-        calendar.hovered = false
-        gears.timer.start_new(0.1, function()
-            if not calendar.hovered then
-                calendar.popup.visible = false
-            end
-            return false
-        end)
-    end)
+    return calendar._popup_controller
+end
+
+-- Create a complete calendar button widget for the wibar
+-- This is a convenience function that creates both the button and sets up the popup
+function calendar.create_button(args)
+    args = args or {}
+
+    local button = create_image_button({
+        widget = wibox.widget {
+            {
+                {
+                    {
+                        {
+                            format = string.format(
+                                '<span foreground="%s">%%a, %%b %%d</span>',
+                                args.fg or theme.clock.fg
+                            ),
+                            font = args.date_font or theme.textclock_date_font,
+                            widget = wibox.widget.textclock
+                        },
+                        top = dpi(-1),
+                        widget = wibox.container.margin
+                    },
+                    halign = "right",
+                    widget = wibox.container.place,
+                },
+                {
+                    {
+                        format = string.format(
+                            '<span foreground="%s">%%I:%%M %%p</span>',
+                            args.fg or theme.clock.fg
+                        ),
+                        font = args.time_font or theme.textclock_time_font,
+                        widget = wibox.widget.textclock
+                    },
+                    halign = "right",
+                    widget = wibox.container.place,
+                },
+                layout = wibox.layout.align.vertical
+            },
+            left = dpi(5),
+            right = dpi(5),
+            widget = wibox.container.margin
+        },
+        padding = args.padding or dpi(3),
+        bg_color = args.bg_color or theme.clock.button_bg,
+        border_color = args.border_color or theme.clock.button_border,
+        hover_bg = args.hover_bg or theme.clock.button_bg_focus,
+        hover_border = args.hover_border or theme.clock.button_border_focus,
+        shape_radius = args.shape_radius or dpi(4),
+        on_click = function()
+            calendar.toggle()
+        end
+    })
+
+    -- Attach the popup behavior
+    calendar.attach(button)
+
+    return button
 end
 
 return calendar

@@ -1,4 +1,16 @@
--- Application Menu
+--[[
+    Application Menu - Refactored with BasePopup
+
+    A full-featured application launcher with:
+    - Search filtering
+    - Pinned apps section
+    - Scrollable app list
+    - Pin/unpin functionality
+    - Desktop file info viewer
+    - Ctrl+click for sudo execution
+    - Keyboard navigation between sections
+]]
+
 local awful = require("awful")
 local beautiful = require("beautiful")
 local gears = require("gears")
@@ -6,229 +18,354 @@ local wibox = require("wibox")
 local dpi = require("beautiful.xresources").apply_dpi
 local naughty = require("naughty")
 
+local BasePopup = require("base_popup")
+
 local config_dir = gears.filesystem.get_configuration_dir()
 local icon_dir = config_dir .. "theme-icons/"
 local theme = load_util("theme")
 local create_text_input = load_widget("text_input")
 
-do
-    local in_error = false
-    awesome.connect_signal("debug::error", function (err)
-        -- Make sure we don't go into an endless error loop
-        if in_error then return end
-        in_error = true
+--------------------------------------------------------------------------------
+-- app_menu Class
+--------------------------------------------------------------------------------
 
-        debug_log("[Error]: " .. tostring(err))
-        in_error = false
-    end)
-end
+local app_menu = {}
+app_menu.__index = app_menu
+setmetatable(app_menu, { __index = BasePopup })
 
--- Core menu state
-appmenu_data = {
-    wibox = nil,
-    search_input = nil,
+--- Configuration
+local CONFIG = {
     visible_entries = 10,
-    current_start = 1,
-    desktop_entries = {},
-    filtered_list = {},
-    pinned_apps = {},
     max_pinned = 8,
     font = font_with_size(13),
-    current_focus = {
-        type = "pinned",  -- "pinned" or "apps"
-        index = nil,
-        pin_focused = false,  -- Whether pin button is focused (for apps only)
-        info_focused = false  -- Whether info button is focused (for apps only)
-    },
+    width = dpi(500),
+    height_with_pinned = dpi(672),
+    height_without_pinned = dpi(590),
     icons = {
         search = icon_dir .. "search.png",
         pin = icon_dir .. "pin.svg",
         pinned = icon_dir .. "unpin.png",
-        info = icon_dir .. "folder.png"
+        info = icon_dir .. "folder.png",
     },
-    control_pressed = false
 }
 
-local function handle_exec_quotes(str)
-    if not str then return nil end
-    str = str:gsub('\\"([^"]+)\\"', function(path)
-        return path:gsub(" ", "\\ ")
-    end)
-    str = str:gsub('\\"', '"'):gsub("\\'", "'")
-    return str
-end
+--------------------------------------------------------------------------------
+-- Constructor
+--------------------------------------------------------------------------------
 
-local function process_exec_command(exec, desktop_file_path)
-    if not exec then return nil end
-    exec = handle_exec_quotes(exec)
-    exec = exec:gsub("%%[fFuU]", "")
-    exec = exec:gsub("%%k", desktop_file_path)
-    exec = exec:gsub("%%[A-Z]", "")
-    return exec
-end
+function app_menu.new()
+    local self = BasePopup.new({
+        name = "appmenu",
 
-local function get_icon_path(desktop_file_content)
-    local icon_name = desktop_file_content:match("Icon=([^\n]+)")
-    if not icon_name then return nil end
+        -- Appearance
+        bg = theme.appmenu.bg,
+        border_color = theme.appmenu.border,
+        border_width = dpi(1),
+        shape_radius = dpi(16),
+
+        -- Sizing
+        width = CONFIG.width,
+        min_width = CONFIG.width,
+        max_width = CONFIG.width,
+
+        -- We'll handle navigation ourselves due to complexity
+        enable_keygrabber = false,
+    })
     
-    -- Check if it's an absolute path
-    if icon_name:match("^/") then
-        local f = io.open(icon_name)
-        if f then
-            f:close()
-            return icon_name
-        end
-    end
+    setmetatable(self, app_menu)
     
-    -- Search common icon directories
-    local icon_dir = "/usr/share/icons/"
-    local icon_paths = {
-        icon_dir .. "hicolor/scalable/apps/",
-        icon_dir .. "hicolor/256x256/apps/",
-        icon_dir .. "hicolor/64x64/apps/",
-        icon_dir .. "hicolor/48x48/apps/",
-        icon_dir .. "hicolor/16x16/apps/",
-        icon_dir,
-        "/usr/share/pixmaps/",
-        os.getenv("HOME") .. "/.local/share/icons/hicolor/48x48/apps/",
-        os.getenv("HOME") .. "/.local/share/icons/hicolor/scalable/apps/"
+    -- App menu specific state
+    self._menu = {
+        desktop_entries = {},
+        filtered_list = {},
+        pinned_apps = {},
+
+        -- Scroll state
+        current_start = 1,
+
+        -- Focus state
+        -- type: "pinned" or "apps"
+        -- index: which item in that section
+        -- pin_focused: whether the pin button is focused (apps only)
+        -- info_focused: whether the info button is focused (apps only)
+        focus = {
+            type = "pinned",
+            index = 1,
+            pin_focused = false,
+            info_focused = false,
+        },
+
+        -- Modifier state
+        control_pressed = false,
+
+        -- Widget references
+        search_input = nil,
+        pinned_widgets = {},
+        app_widgets = {},
     }
-    local extensions = { ".png", ".svg", ".xpm", "" }
-    
-    for _, path in ipairs(icon_paths) do
-        for _, ext in ipairs(extensions) do
-            local icon_path = path .. icon_name .. ext
-            local f = io.open(icon_path)
-            if f then
-                f:close()
-                return icon_path
-            end
-        end
-    end
-    
-    return nil
+
+    return self
 end
 
-function scan_desktop_files()
-    local paths = {
-        "/usr/share/applications/",
-        os.getenv("HOME") .. "/.local/share/applications/",
-        os.getenv("HOME") .. "/.local/share/flatpak/exports/share/applications/",
-        "/var/lib/flatpak/exports/share/applications/"
+--------------------------------------------------------------------------------
+-- Initialization
+--------------------------------------------------------------------------------
+
+function app_menu:init()
+    -- Call parent init (creates popup, overlay, etc.)
+    BasePopup.init(self)
+    
+    -- Load pinned apps from persistent storage
+    self:_load_pinned_apps()
+
+    -- Scan desktop files
+    self:_scan_desktop_files()
+
+    -- Create custom keygrabber with modifier tracking
+    self._menu.keygrabber = awful.keygrabber {
+        autostart = false,
+
+        keypressed_callback = function(_, mod, key)
+            -- Track control key state
+            if key == "Control_L" or key == "Control_R" then
+                self._menu.control_pressed = true
+                self:_emit_focus_update()
+                return
+            end
+
+            -- Let text input handle the key first
+            if self._menu.search_input and self._menu.search_input:handle_key(mod, key) then
+                return
+            end
+
+            -- Handle escape
+            if key == "Escape" then
+                self:hide()
+                return
+            end
+
+            -- Handle navigation keys
+            if key == "Up" or key == "Down" or key == "Left" or key == "Right" or
+               key == "Return" or key == "Home" or key == "End" or key == "Tab" then
+                self:_handle_navigation(mod, key)
+                return
+            end
+
+            -- Passthrough other keys to global bindings
+            if execute_keybind then
+                execute_keybind(key, mod)
+            end
+        end,
+
+        keyreleased_callback = function(_, mod, key)
+            if key == "Control_L" or key == "Control_R" then
+                self._menu.control_pressed = false
+                self:_emit_focus_update()
+            end
+        end,
+
+        stop_callback = function()
+            if self._state.is_visible then
+                self._state.popup.visible = false
+                self._state.is_visible = false
+            end
+        end,
     }
     
-    appmenu_data.desktop_entries = {}
-    
-    for _, path in ipairs(paths) do
-        local handle = io.popen('find "' .. path .. '" -name "*.desktop" 2>/dev/null')
-        if handle then
-            for file in handle:lines() do
-                local f = io.open(file)
-                if f then
-                    local content = f:read("*all")
-                    f:close()
-                    
-                    local name = content:match("Name=([^\n]+)")
-                    local exec = content:match("Exec=([^\n]+)")
-                    local nodisplay = content:match("NoDisplay=([^\n]+)")
-                    local hidden = content:match("Hidden=([^\n]+)")
-                    
-                    if name and exec and nodisplay ~= "true" and hidden ~= "true" then
-                        exec = process_exec_command(exec, file)
-                        if exec then
-                            table.insert(appmenu_data.desktop_entries, {
-                                name = name,
-                                exec = exec,
-                                icon = get_icon_path(content),
-                                desktop_path = file
-                            })
-                        end
-                    end
-                end
-            end
-            handle:close()
-        end
-    end
-    
-    table.sort(appmenu_data.desktop_entries, function(a, b)
-        return string.lower(a.name) < string.lower(b.name)
-    end)
+    return self
 end
 
-function save_pinned_apps()
-    local file = io.open(config_dir .. "persistent/pinned_apps.lua", "w")
-    if file then
-        file:write("return {")
-        for _, app in ipairs(appmenu_data.pinned_apps) do
-            file:write(string.format(
-                '\n  {name = %s, exec = %s, icon = %s},',
-                escape_string(app.name),
-                escape_string(app.exec),
-                escape_string(app.icon or "")
-            ))
-        end
-        file:write("\n}")
-        file:close()
+--------------------------------------------------------------------------------
+-- Lifecycle Hooks
+--------------------------------------------------------------------------------
+
+--- Called before show() does its work
+function app_menu:on_before_show()
+    -- Rescan desktop files (in case apps were installed/removed)
+    self:_scan_desktop_files()
+
+    -- Reset state
+    self._menu.control_pressed = false
+    self._menu.current_start = 1
+    self._menu.focus = {
+        type = #self._menu.pinned_apps > 0 and "pinned" or "apps",
+        index = 1,
+        pin_focused = false,
+        info_focused = false,
+    }
+    self:_emit_focus_update()
+
+    -- Reset search
+    if self._menu.search_input then
+        self._menu.search_input:set_text("")
     end
+    self:_update_filtered_list("")
+
+    -- Update height based on pinned apps
+    local height = #self._menu.pinned_apps > 0
+        and CONFIG.height_with_pinned
+        or CONFIG.height_without_pinned
+    self._state.popup.minimum_height = height
+    self._state.popup.maximum_height = height
 end
 
-function load_pinned_apps()
-    local success, apps = pcall(dofile, config_dir .. "persistent/pinned_apps.lua")
-    if success and apps and type(apps) == "table" then
-        for _, app in ipairs(apps) do
-            if app.exec then
-                app.exec = handle_exec_quotes(app.exec)
-            end
-        end
-        appmenu_data.pinned_apps = apps
+--- Called after popup is positioned and visible
+function app_menu:on_show()
+    -- Start our custom keygrabber (base class keygrabber is disabled)
+    if self._menu.keygrabber then
+        self._menu.keygrabber:start()
     end
+
+    -- Emit initial focus
+    self:_emit_focus_update()
 end
 
-function toggle_pin(app)
-    if not app then return end
-    
-    -- Check if already pinned
-    for i, pinned_app in ipairs(appmenu_data.pinned_apps) do
-        if pinned_app.name == app.name then
-            table.remove(appmenu_data.pinned_apps, i)
-            save_pinned_apps()
-            refresh_menu_widget()
-            return
-        end
-    end
-    
-    -- Add to pinned apps
-    if #appmenu_data.pinned_apps < appmenu_data.max_pinned then
-        table.insert(appmenu_data.pinned_apps, {
-            name = app.name,
-            exec = app.exec,
-            icon = app.icon
-        })
-        save_pinned_apps()
-        refresh_menu_widget()
-    else
-        --[[ naughty.notify({
-            text = "Maximum number of pinned apps reached",
-            timeout = 2
-        }) ]]
-    end
+--- Override content wrapping to use constraint
+function app_menu:_wrap_content(content)
+    local height = #self._menu.pinned_apps > 0
+        and CONFIG.height_with_pinned
+        or CONFIG.height_without_pinned
+    return wibox.container.constraint(content, "exact", CONFIG.width, height)
 end
 
-local function reorder_pinned(index, direction)
-    local new_index = index + direction
-    if new_index < 1 or new_index > #appmenu_data.pinned_apps then
+--- Override show to call parent
+function app_menu:show()
+    BasePopup.show(self)
+end
+
+function app_menu:hide()
+    if not self._state.is_visible then
         return
     end
     
-    appmenu_data.pinned_apps[index], appmenu_data.pinned_apps[new_index] =
-        appmenu_data.pinned_apps[new_index], appmenu_data.pinned_apps[index]
+    self._state.popup.visible = false
+    self._state.is_visible = false
 
-    appmenu_data.current_focus.index = new_index
-    save_pinned_apps()
-    refresh_menu_widget()
+    if self._menu.keygrabber then
+        self._menu.keygrabber:stop()
+    end
+
+    -- Restore focus to client under mouse
+    local c = awful.mouse.client_under_pointer()
+    if c then
+        client.focus = c
+        c:raise()
+    end
 end
 
-local function create_pinned_icon(app, index)
+--- Override refresh to maintain constraint wrapper
+function app_menu:refresh()
+    if not self._state.popup then return end
+
+    -- Recalculate height in case pinned apps changed
+    local height = #self._menu.pinned_apps > 0
+        and CONFIG.height_with_pinned
+        or CONFIG.height_without_pinned
+    self._state.popup.minimum_height = height
+    self._state.popup.maximum_height = height
+
+    -- Rebuild content with constraint wrapper
+    local content = self:create_content()
+    self._state.popup.widget = self:_wrap_content(content)
+
+    -- Re-emit focus update after widgets are rebuilt
+    gears.timer.start_new(0.01, function()
+        self:_emit_focus_update()
+        return false
+    end)
+end
+
+--------------------------------------------------------------------------------
+-- Content Creation
+--------------------------------------------------------------------------------
+
+function app_menu:create_content()
+    -- Clear widget references
+    self._menu.pinned_widgets = {}
+    self._menu.app_widgets = {}
+
+    -- Create search input if not exists
+    if not self._menu.search_input then
+        self._menu.search_input = create_text_input({
+            disable_arrows = true,
+            font = CONFIG.font,
+            height = dpi(24),
+            on_text_change = function(new_text)
+                if new_text ~= "" and new_text ~= nil then
+                    self._menu.current_start = 1
+                    self._menu.focus = {
+                        type = "apps",
+                        index = 1,
+                        pin_focused = false,
+                        info_focused = false
+                    }
+                    self:_update_filtered_list(new_text)
+                    self:_ensure_focused_visible()
+                    self:refresh()
+                end
+            end
+        })
+    end
+
+    -- Build the layout
+    local layout = wibox.layout.fixed.vertical()
+    layout.spacing = dpi(4)
+
+    -- Pinned apps section (if any)
+    if #self._menu.pinned_apps > 0 then
+        layout:add(self:_create_pinned_section())
+    end
+
+    -- Search box
+    layout:add(self:_create_search_box())
+
+    -- App list
+    layout:add(self:_create_app_list())
+
+    return layout
+end
+
+function app_menu:_create_pinned_section()
+    local row = wibox.widget {
+        layout = wibox.layout.fixed.horizontal,
+        spacing = dpi(8),
+    }
+
+    for i, app in ipairs(self._menu.pinned_apps) do
+        local icon = self:_create_pinned_icon(app, i)
+        row:add(icon)
+        self._menu.pinned_widgets[i] = icon
+    end
+
+    local separator = wibox.widget {
+        widget = wibox.widget.separator,
+        orientation = "horizontal",
+        forced_height = 1,
+        color = theme.appmenu.button_border .. "33",
+        span_ratio = 0.98,
+    }
+
+    return wibox.widget {
+        {
+            {
+                {
+                    row,
+                    margins = dpi(8),
+                    widget = wibox.container.margin,
+                },
+                margins = dpi(8),
+                widget = wibox.container.margin,
+            },
+            separator,
+            layout = wibox.layout.fixed.vertical,
+            spacing = dpi(1),
+        },
+        bg = theme.appmenu.bg,
+        widget = wibox.container.background,
+    }
+end
+
+function app_menu:_create_pinned_icon(app, index)
     local icon_widget = create_image_button({
         image_path = app.icon,
         fallback_text = "◫",
@@ -240,25 +377,29 @@ local function create_pinned_icon(app, index)
         hover_border = theme.appmenu.button_border_focus,
         shape_radius = dpi(8),
         on_click = function()
-            awful.spawn(app.exec)
-            appmenu_hide()
+            if self._menu.control_pressed then
+                self:_run_with_sudo(app.exec)
+            else
+                awful.spawn(app.exec)
+            end
+            self:hide()
             return true
         end,
         on_right_click = function()
-            table.remove(appmenu_data.pinned_apps, index)
-            save_pinned_apps()
-            refresh_menu_widget()
-        end
+            self:_remove_pinned(index)
+        end,
     })
 
-    function icon_widget:update_focus()
-        if appmenu_data.current_focus.type == "pinned" and
-           appmenu_data.current_focus.index == index then
+    -- Custom focus update
+    function icon_widget:update_menu_focus(menu)
+        local focus = menu._menu.focus
+        if focus.type == "pinned" and focus.index == index then
             self:emit_signal("button::focus")
-            if appmenu_data.control_pressed then
+            if menu._menu.control_pressed then
                 gears.timer.start_new(0.01, function()
                     self.shape_border_color = theme.appmenu.button_border_sudo
                     self.bg = theme.appmenu.button_bg_sudo
+                    return false
                 end)
             end
         else
@@ -266,33 +407,103 @@ local function create_pinned_icon(app, index)
         end
     end
 
-    appmenu_data.wibox:connect_signal("property::current_focus", function()
-        icon_widget:update_focus()
-    end)
-
+    -- Mouse enter changes focus
     icon_widget:connect_signal("mouse::enter", function()
-        appmenu_data.current_focus = { type = "pinned", index = index, pin_focused = false }
-        appmenu_data.wibox:emit_signal("property::current_focus")
+        self._menu.focus = { type = "pinned", index = index, pin_focused = false }
+        self:_emit_focus_update()
     end)
-
-    add_hover_cursor(icon_widget)
-    icon_widget:update_focus()
 
     return icon_widget
 end
 
-local function create_app_entry(app, index)
-    local widget = { is_pinned = false }
+function app_menu:_create_search_box()
+    local search_icon = wibox.widget {
+        {
+            image = CONFIG.icons.search,
+            resize = true,
+            forced_width = dpi(18),
+            forced_height = dpi(18),
+            opacity = 0.5,
+            widget = wibox.widget.imagebox,
+        },
+        valign = "center",
+        widget = wibox.container.place,
+    }
+
+    local search_content = wibox.widget {
+        search_icon,
+        {
+            self._menu.search_input.background,
+            bottom = dpi(4),
+            widget = wibox.container.margin,
+        },
+        spacing = dpi(8),
+        layout = wibox.layout.fixed.horizontal,
+    }
     
-    -- Check if pinned
-    for _, pinned_app in ipairs(appmenu_data.pinned_apps) do
-        if pinned_app.name == app.name then
-            widget.is_pinned = true
-            break
+    return wibox.widget {
+        {
+            {
+                search_content,
+                margins = dpi(12),
+                widget = wibox.container.margin,
+            },
+            bg = theme.appmenu.bg,
+            shape = function(cr, w, h)
+                gears.shape.rounded_rect(cr, w, h, dpi(15))
+            end,
+            shape_border_width = dpi(1),
+            shape_border_color = theme.appmenu.button_border .. "33",
+            widget = wibox.container.background,
+        },
+        left = dpi(12),
+        right = dpi(12),
+        top = dpi(10),
+        bottom = dpi(10),
+        widget = wibox.container.margin,
+    }
+end
+
+function app_menu:_create_app_list()
+    local list = wibox.widget {
+        layout = wibox.layout.fixed.vertical,
+        spacing = dpi(6),
+    }
+
+    local start_idx = self._menu.current_start
+    local end_idx = math.min(
+        start_idx + CONFIG.visible_entries - 1,
+        #self._menu.filtered_list
+    )
+
+    for i = start_idx, end_idx do
+        local app = self._menu.filtered_list[i]
+        if app then
+            local entry = self:_create_app_entry(app, i)
+            list:add(entry.container)
+            self._menu.app_widgets[i] = entry
         end
     end
 
-    -- Icon
+    -- Add scroll buttons
+    list:buttons(gears.table.join(
+        awful.button({}, 4, function() self:_scroll_list(-1) end),
+        awful.button({}, 5, function() self:_scroll_list(1) end)
+    ))
+
+    return wibox.widget {
+        list,
+        margins = dpi(4),
+        widget = wibox.container.margin,
+    }
+end
+
+function app_menu:_create_app_entry(app, index)
+    local entry = {
+        is_pinned = self:_is_app_pinned(app),
+    }
+
+    -- Icon (non-interactive, just display)
     local icon_widget = create_image_button({
         image_path = app.icon,
         fallback_text = "◫",
@@ -300,12 +511,12 @@ local function create_app_entry(app, index)
         padding = dpi(2),
         bg_color = "transparent",
         border_color = "transparent",
-        hover_bg = "transparent"
+        hover_bg = "transparent",
     })
 
     -- Pin button
-    widget.pin_button = create_image_button({
-        image_path = widget.is_pinned and appmenu_data.icons.pinned or appmenu_data.icons.pin,
+    entry.pin_button = create_image_button({
+        image_path = entry.is_pinned and CONFIG.icons.pinned or CONFIG.icons.pin,
         image_size = dpi(16),
         padding = dpi(8),
         opacity = 0.6,
@@ -315,24 +526,25 @@ local function create_app_entry(app, index)
         border_color = theme.appmenu.button_border .. "55",
         hover_border = theme.appmenu.button_border_focus,
         on_click = function()
-            toggle_pin(app)
+            self:_toggle_pin(app)
             return true
-        end
+        end,
     })
-    widget.pin_button.visible = false
+    entry.pin_button.visible = false
 
-    widget.pin_button:connect_signal("mouse::enter", function()
-        appmenu_data.current_focus.pin_focused = true
-        appmenu_data.wibox:emit_signal("property::current_focus")
+    entry.pin_button:connect_signal("mouse::enter", function()
+        self._menu.focus.pin_focused = true
+        self._menu.focus.info_focused = false
+        self:_emit_focus_update()
     end)
-    widget.pin_button:connect_signal("mouse::leave", function()
-        appmenu_data.current_focus.pin_focused = false
-        appmenu_data.wibox:emit_signal("property::current_focus")
+    entry.pin_button:connect_signal("mouse::leave", function()
+        self._menu.focus.pin_focused = false
+        self:_emit_focus_update()
     end)
 
     -- Info button
-    widget.info_button = create_image_button({
-        image_path = appmenu_data.icons.info,
+    entry.info_button = create_image_button({
+        image_path = CONFIG.icons.info,
         fallback_text = "ⓘ",
         image_size = dpi(16),
         padding = dpi(8),
@@ -343,24 +555,25 @@ local function create_app_entry(app, index)
         border_color = theme.appmenu.button_border .. "55",
         hover_border = theme.appmenu.button_border_focus,
         on_click = function()
-            show_desktop_info(app.desktop_path)
-            appmenu_hide()
+            self:_show_desktop_info(app.desktop_path)
+            self:hide()
             return true
-        end
+        end,
     })
-    widget.info_button.visible = false
+    entry.info_button.visible = false
 
-    widget.info_button:connect_signal("mouse::enter", function()
-        appmenu_data.current_focus.info_focused = true
-        appmenu_data.wibox:emit_signal("property::current_focus")
+    entry.info_button:connect_signal("mouse::enter", function()
+        self._menu.focus.info_focused = true
+        self._menu.focus.pin_focused = false
+        self:_emit_focus_update()
     end)
-    widget.info_button:connect_signal("mouse::leave", function()
-        appmenu_data.current_focus.info_focused = false
-        appmenu_data.wibox:emit_signal("property::current_focus")
+    entry.info_button:connect_signal("mouse::leave", function()
+        self._menu.focus.info_focused = false
+        self:_emit_focus_update()
     end)
 
-    -- Main content
-    widget.background = wibox.widget {
+    -- Main background/row
+    entry.background = wibox.widget {
         {
             {
                 {
@@ -368,19 +581,19 @@ local function create_app_entry(app, index)
                     {
                         text = app.name,
                         widget = wibox.widget.textbox,
-                        font = beautiful.font or "Sans 11"
+                        font = beautiful.font or "Sans 11",
                     },
                     spacing = dpi(8),
                     layout = wibox.layout.fixed.horizontal,
                 },
                 nil,
                 {
-                    widget.pin_button,
-                    widget.info_button,
+                    entry.pin_button,
+                    entry.info_button,
                     spacing = dpi(4),
                     layout = wibox.layout.fixed.horizontal,
                 },
-                layout = wibox.layout.align.horizontal
+                layout = wibox.layout.align.horizontal,
             },
             margins = dpi(6),
             widget = wibox.container.margin,
@@ -394,32 +607,35 @@ local function create_app_entry(app, index)
         widget = wibox.container.background,
     }
 
-    function widget:update_focus()
-        local is_focused = appmenu_data.current_focus.type == "apps" and
-                          appmenu_data.current_focus.index == index
+    -- Focus update function
+    function entry:update_menu_focus(menu)
+        local focus = menu._menu.focus
+        local is_focused = focus.type == "apps" and focus.index == index
 
         self.pin_button.visible = is_focused
         self.info_button.visible = is_focused
 
         if is_focused then
-            if appmenu_data.current_focus.pin_focused then
+            if focus.pin_focused then
                 self.background.bg = theme.appmenu.button_bg
                 self.background.fg = theme.appmenu.fg
                 self.background.shape_border_color = theme.appmenu.button_border_focus
                 self.pin_button:emit_signal("button::focus")
                 self.info_button:emit_signal("button::unfocus")
-            elseif appmenu_data.current_focus.info_focused then
+            elseif focus.info_focused then
                 self.background.bg = theme.appmenu.button_bg
                 self.background.fg = theme.appmenu.fg
                 self.background.shape_border_color = theme.appmenu.button_border_focus
                 self.pin_button:emit_signal("button::unfocus")
                 self.info_button:emit_signal("button::focus")
             else
-                self.background.bg = appmenu_data.control_pressed and
-                    theme.appmenu.button_bg_sudo or theme.appmenu.button_bg_focus
+                self.background.bg = menu._menu.control_pressed
+                    and theme.appmenu.button_bg_sudo
+                    or theme.appmenu.button_bg_focus
                 self.background.fg = beautiful.fg_focus
-                self.background.shape_border_color = appmenu_data.control_pressed and
-                    theme.appmenu.button_border_sudo or theme.appmenu.button_border_focus
+                self.background.shape_border_color = menu._menu.control_pressed
+                    and theme.appmenu.button_border_sudo
+                    or theme.appmenu.button_border_focus
                 self.pin_button:emit_signal("button::unfocus")
                 self.info_button:emit_signal("button::unfocus")
             end
@@ -430,231 +646,70 @@ local function create_app_entry(app, index)
         end
     end
 
-    appmenu_data.wibox:connect_signal("property::current_focus", function()
-        widget:update_focus()
+    -- Mouse enter changes focus
+    entry.background:connect_signal("mouse::enter", function()
+        self._menu.focus = {
+            type = "apps",
+            index = index,
+            pin_focused = false,
+            info_focused = false
+        }
+        self:_emit_focus_update()
     end)
 
-    widget.background:connect_signal("mouse::enter", function()
-        appmenu_data.current_focus = { type = "apps", index = index, pin_focused = false, info_focused = false }
-        appmenu_data.wibox:emit_signal("property::current_focus")
-    end)
-
-    widget.background:buttons(gears.table.join(
+    -- Click handlers
+    entry.background:buttons(gears.table.join(
         awful.button({}, 1, function()
-            if not appmenu_data.current_focus.pin_focused and not appmenu_data.current_focus.info_focused then
+            if not self._menu.focus.pin_focused and not self._menu.focus.info_focused then
                 awful.spawn(app.exec)
-                appmenu_hide()
+                self:hide()
             end
         end),
         awful.button({"Control"}, 1, function()
-            if not appmenu_data.current_focus.pin_focused and not appmenu_data.current_focus.info_focused then
-                run_with_sudo(app.exec)
-                appmenu_hide()
+            if not self._menu.focus.pin_focused and not self._menu.focus.info_focused then
+                self:_run_with_sudo(app.exec)
+                self:hide()
             end
         end)
     ))
 
-    add_hover_cursor(widget.background)
-    add_hover_cursor(widget.pin_button)
-    add_hover_cursor(widget.info_button)
-    widget:update_focus()
+    add_hover_cursor(entry.background)
+    add_hover_cursor(entry.pin_button)
+    add_hover_cursor(entry.info_button)
 
-    return wibox.widget {
-        widget.background,
+    -- Container with margins
+    entry.container = wibox.widget {
+        entry.background,
         left = dpi(8),
         right = dpi(8),
-        widget = wibox.container.margin
+        widget = wibox.container.margin,
     }
+
+    return entry
 end
 
-local function create_pinned_row()
-    local row = wibox.widget {
-        layout = wibox.layout.fixed.horizontal,
-        spacing = dpi(8),
-    }
+--------------------------------------------------------------------------------
+-- Focus Management
+--------------------------------------------------------------------------------
 
-    for i, app in ipairs(appmenu_data.pinned_apps) do
-        row:add(create_pinned_icon(app, i))
-    end
-
-    return wibox.widget {
-        {
-            {
-                row,
-                margins = dpi(8),
-                widget = wibox.container.margin
-            },
-            bg = theme.appmenu.bg,
-            widget = wibox.container.background
-        },
-        visible = #appmenu_data.pinned_apps > 0,
-        layout = wibox.layout.fixed.horizontal
-    }
-end
-
-local function create_app_list()
-    local list = wibox.widget {
-        layout = wibox.layout.fixed.vertical,
-        spacing = dpi(6),
-    }
-
-    local start_idx = appmenu_data.current_start
-    local end_idx = math.min(start_idx + appmenu_data.visible_entries - 1, #appmenu_data.filtered_list)
-
-    for i = start_idx, end_idx do
-        local app = appmenu_data.filtered_list[i]
-        if app then
-            list:add(create_app_entry(app, i))
+function app_menu:_emit_focus_update()
+    -- Update pinned widgets
+    for i, widget in pairs(self._menu.pinned_widgets) do
+        if widget.update_menu_focus then
+            widget:update_menu_focus(self)
         end
     end
 
-    return list
-end
-
-local function create_search_box()
-    local search_icon = wibox.widget {
-        {
-            image = appmenu_data.icons.search,
-            resize = true,
-            forced_width = dpi(18),
-            forced_height = dpi(18),
-            opacity = 0.5,
-            widget = wibox.widget.imagebox
-        },
-        valign = 'center',
-        widget = wibox.container.place
-    }
-
-    local search_content = wibox.widget {
-        search_icon,
-        {
-            appmenu_data.search_input.background,
-            bottom = dpi(4),
-            widget = wibox.container.margin
-        },
-        spacing = dpi(8),
-        layout = wibox.layout.fixed.horizontal
-    }
-
-    local search_container = wibox.widget {
-        {
-            search_content,
-            margins = dpi(12),
-            widget = wibox.container.margin
-        },
-        bg = theme.appmenu.bg,
-        shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, dpi(15)) end,
-        shape_border_width = dpi(1),
-        shape_border_color = theme.appmenu.button_border .. "33",
-        widget = wibox.container.background
-    }
-
-    local separator = wibox.widget {
-        widget = wibox.widget.separator,
-        orientation = "horizontal",
-        forced_height = 1,
-        color = theme.appmenu.button_border .. "33",
-        span_ratio = 0.98
-    }
-
-    return wibox.widget {
-        -- Pinned apps section
-        {
-            {
-                {
-                    create_pinned_row(),
-                    margins = dpi(8),
-                    widget = wibox.container.margin
-                },
-                separator,
-                layout = wibox.layout.fixed.vertical,
-                spacing = dpi(1)
-            },
-            bg = theme.appmenu.bg,
-            visible = #appmenu_data.pinned_apps > 0,
-            widget = wibox.container.background
-        },
-        -- Search box
-        {
-            search_container,
-            left = dpi(12),
-            right = dpi(12),
-            top = dpi(10),
-            bottom = dpi(10),
-            widget = wibox.container.margin
-        },
-        -- App list
-        {
-            create_app_list(),
-            margins = dpi(4),
-            widget = wibox.container.margin
-        },
-        layout = wibox.layout.fixed.vertical,
-        spacing = dpi(4)
-    }
-end
-
-function update_filtered_list(search_term)
-    appmenu_data.filtered_list = {}
-    search_term = string.lower(search_term or "")
-    
-    for _, app in ipairs(appmenu_data.desktop_entries) do
-        if string.find(string.lower(app.name), search_term, 1, true) then
-            table.insert(appmenu_data.filtered_list, app)
+    -- Update app widgets
+    for i, entry in pairs(self._menu.app_widgets) do
+        if entry.update_menu_focus then
+            entry:update_menu_focus(self)
         end
     end
 end
 
-function refresh_menu_widget()
-    if not appmenu_data.wibox then return end
-
-    local new_height = #appmenu_data.pinned_apps > 0 and dpi(672) or dpi(590)
-    appmenu_data.wibox.maximum_height = new_height
-    appmenu_data.wibox.minimum_height = new_height
-    appmenu_data.wibox.widget = wibox.container.constraint(
-        create_search_box(), "exact", dpi(500), new_height
-    )
-end
-
-local function scroll_list(direction)
-    if direction > 0 then  -- Down
-        if appmenu_data.current_start + appmenu_data.visible_entries <= #appmenu_data.filtered_list then
-            appmenu_data.current_start = appmenu_data.current_start + 1
-            if appmenu_data.current_focus.type == "apps" then
-                appmenu_data.current_focus.index = appmenu_data.current_focus.index + 1
-            end
-            refresh_menu_widget()
-        end
-    else  -- Up
-        if appmenu_data.current_start > 1 then
-            appmenu_data.current_start = appmenu_data.current_start - 1
-            local max_visible = appmenu_data.current_start + appmenu_data.visible_entries - 1
-            if appmenu_data.current_focus.type == "apps" then
-                appmenu_data.current_focus.index = appmenu_data.current_focus.index - 1
-            end
-            refresh_menu_widget()
-        end
-    end
-end
-
-local function ensure_focused_visible()
-    if appmenu_data.current_focus.type ~= "apps" or not appmenu_data.current_focus.index then
-        return
-    end
-    
-    local index = appmenu_data.current_focus.index
-    
-    if index < appmenu_data.current_start then
-        appmenu_data.current_start = index
-        refresh_menu_widget()
-    elseif index >= appmenu_data.current_start + appmenu_data.visible_entries then
-        appmenu_data.current_start = index - appmenu_data.visible_entries + 1
-        refresh_menu_widget()
-    end
-end
-
-local function handle_keyboard_navigation(mod, key)
-    local focus = appmenu_data.current_focus
+function app_menu:_handle_navigation(mod, key)
+    local focus = self._menu.focus
     local is_ctrl = false
     for _, m in ipairs(mod) do
         if m == "Control" then
@@ -670,7 +725,7 @@ local function handle_keyboard_navigation(mod, key)
     
     if key == "Up" then
         if focus.type == "apps" then
-            if focus.index == 1 and #appmenu_data.pinned_apps > 0 then
+            if focus.index == 1 and #self._menu.pinned_apps > 0 then
                 focus.type = "pinned"
                 focus.index = 1
                 focus.pin_focused = false
@@ -679,7 +734,7 @@ local function handle_keyboard_navigation(mod, key)
                 focus.index = math.max(1, focus.index - 1)
                 focus.pin_focused = false
                 focus.info_focused = false
-                ensure_focused_visible()
+                self:_ensure_focused_visible()
             end
         end
         
@@ -689,18 +744,18 @@ local function handle_keyboard_navigation(mod, key)
             focus.index = 1
             focus.pin_focused = false
             focus.info_focused = false
-            ensure_focused_visible()
-        elseif focus.type == "apps" and focus.index < #appmenu_data.filtered_list then
+            self:_ensure_focused_visible()
+        elseif focus.type == "apps" and focus.index < #self._menu.filtered_list then
             focus.index = focus.index + 1
             focus.pin_focused = false
             focus.info_focused = false
-            ensure_focused_visible()
+            self:_ensure_focused_visible()
         end
         
     elseif key == "Left" then
         if focus.type == "pinned" then
             if is_ctrl then
-                reorder_pinned(focus.index, -1)
+                self:_reorder_pinned(focus.index, -1)
                 return
             elseif focus.index > 1 then
                 focus.index = focus.index - 1
@@ -717,9 +772,9 @@ local function handle_keyboard_navigation(mod, key)
     elseif key == "Right" then
         if focus.type == "pinned" then
             if is_ctrl then
-                reorder_pinned(focus.index, 1)
+                self:_reorder_pinned(focus.index, 1)
                 return
-            elseif focus.index < #appmenu_data.pinned_apps then
+            elseif focus.index < #self._menu.pinned_apps then
                 focus.index = focus.index + 1
             end
         elseif focus.type == "apps" then
@@ -732,34 +787,36 @@ local function handle_keyboard_navigation(mod, key)
         end
 
     elseif key == "Tab" and focus.type == "pinned" then
-        focus.index = focus.index < #appmenu_data.pinned_apps and focus.index + 1 or 1
+        focus.index = focus.index < #self._menu.pinned_apps
+            and focus.index + 1
+            or 1
         
     elseif key == "Return" then
         if focus.type == "apps" then
-            local app = appmenu_data.filtered_list[focus.index]
+            local app = self._menu.filtered_list[focus.index]
             if app then
                 if focus.pin_focused then
-                    toggle_pin(app)
+                    self:_toggle_pin(app)
                 elseif focus.info_focused then
-                    show_desktop_info(app.desktop_path)
+                    self:_show_desktop_info(app.desktop_path)
                 else
                     if is_ctrl then
-                        run_with_sudo(app.exec)
+                        self:_run_with_sudo(app.exec)
                     else
                         awful.spawn(app.exec)
                     end
-                    appmenu_hide()
+                    self:hide()
                 end
             end
         elseif focus.type == "pinned" then
-            local app = appmenu_data.pinned_apps[focus.index]
+            local app = self._menu.pinned_apps[focus.index]
             if app then
                 if is_ctrl then
-                    run_with_sudo(app.exec)
+                    self:_run_with_sudo(app.exec)
                 else
                     awful.spawn(app.exec)
                 end
-                appmenu_hide()
+                self:hide()
             end
         end
 
@@ -768,180 +825,335 @@ local function handle_keyboard_navigation(mod, key)
         focus.pin_focused = false
         focus.info_focused = false
         if focus.type == "apps" then
-            ensure_focused_visible()
+            self:_ensure_focused_visible()
         end
 
     elseif key == "End" then
         if focus.type == "apps" then
-            focus.index = #appmenu_data.filtered_list
+            focus.index = #self._menu.filtered_list
             focus.pin_focused = false
             focus.info_focused = false
-            ensure_focused_visible()
+            self:_ensure_focused_visible()
         elseif focus.type == "pinned" then
-            focus.index = #appmenu_data.pinned_apps
+            focus.index = #self._menu.pinned_apps
         end
     end
-    
-    appmenu_data.wibox:emit_signal("property::current_focus")
+
+    self:_emit_focus_update()
 end
 
-function run_with_sudo(command)
+--------------------------------------------------------------------------------
+-- Scrolling
+--------------------------------------------------------------------------------
+
+function app_menu:_scroll_list(direction)
+    if direction > 0 then  -- Down
+        if self._menu.current_start + CONFIG.visible_entries <= #self._menu.filtered_list then
+            self._menu.current_start = self._menu.current_start + 1
+            if self._menu.focus.type == "apps" then
+                self._menu.focus.index = self._menu.focus.index + 1
+            end
+            self:refresh()
+        end
+    else  -- Up
+        if self._menu.current_start > 1 then
+            self._menu.current_start = self._menu.current_start - 1
+            if self._menu.focus.type == "apps" then
+                self._menu.focus.index = self._menu.focus.index - 1
+            end
+            self:refresh()
+        end
+    end
+end
+
+function app_menu:_ensure_focused_visible()
+    if self._menu.focus.type ~= "apps" or not self._menu.focus.index then
+        return
+    end
+
+    local index = self._menu.focus.index
+
+    if index < self._menu.current_start then
+        self._menu.current_start = index
+        self:refresh()
+    elseif index >= self._menu.current_start + CONFIG.visible_entries then
+        self._menu.current_start = index - CONFIG.visible_entries + 1
+        self:refresh()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Desktop Files
+--------------------------------------------------------------------------------
+
+function app_menu:_scan_desktop_files()
+    local paths = {
+        "/usr/share/applications/",
+        os.getenv("HOME") .. "/.local/share/applications/",
+        os.getenv("HOME") .. "/.local/share/flatpak/exports/share/applications/",
+        "/var/lib/flatpak/exports/share/applications/",
+    }
+
+    self._menu.desktop_entries = {}
+
+    for _, path in ipairs(paths) do
+        local handle = io.popen('find "' .. path .. '" -name "*.desktop" 2>/dev/null')
+        if handle then
+            for file in handle:lines() do
+                local f = io.open(file)
+                if f then
+                    local content = f:read("*all")
+                    f:close()
+
+                    local name = content:match("Name=([^\n]+)")
+                    local exec = content:match("Exec=([^\n]+)")
+                    local nodisplay = content:match("NoDisplay=([^\n]+)")
+                    local hidden = content:match("Hidden=([^\n]+)")
+
+                    if name and exec and nodisplay ~= "true" and hidden ~= "true" then
+                        exec = self:_process_exec_command(exec, file)
+                        if exec then
+                            table.insert(self._menu.desktop_entries, {
+                                name = name,
+                                exec = exec,
+                                icon = self:_get_icon_path(content),
+                                desktop_path = file,
+                            })
+                        end
+                    end
+                end
+            end
+            handle:close()
+        end
+    end
+
+    table.sort(self._menu.desktop_entries, function(a, b)
+        return string.lower(a.name) < string.lower(b.name)
+    end)
+
+    -- Initialize filtered list
+    self:_update_filtered_list("")
+end
+
+function app_menu:_process_exec_command(exec, desktop_file_path)
+    if not exec then return nil end
+
+    -- Handle escaped quotes
+    exec = exec:gsub('\\"([^"]+)\\"', function(path)
+        return path:gsub(" ", "\\ ")
+    end)
+    exec = exec:gsub('\\"', '"'):gsub("\\'", "'")
+
+    -- Remove field codes
+    exec = exec:gsub("%%[fFuU]", "")
+    exec = exec:gsub("%%k", desktop_file_path)
+    exec = exec:gsub("%%[A-Z]", "")
+
+    return exec
+end
+
+function app_menu:_get_icon_path(desktop_file_content)
+    local icon_name = desktop_file_content:match("Icon=([^\n]+)")
+    if not icon_name then return nil end
+    
+    -- Absolute path
+    if icon_name:match("^/") then
+        local f = io.open(icon_name)
+        if f then
+            f:close()
+            return icon_name
+        end
+    end
+
+    -- Search common icon directories
+    local icon_dirs = {
+        "/usr/share/icons/hicolor/scalable/apps/",
+        "/usr/share/icons/hicolor/256x256/apps/",
+        "/usr/share/icons/hicolor/64x64/apps/",
+        "/usr/share/icons/hicolor/48x48/apps/",
+        "/usr/share/icons/hicolor/16x16/apps/",
+        "/usr/share/icons/",
+        "/usr/share/pixmaps/",
+        os.getenv("HOME") .. "/.local/share/icons/hicolor/48x48/apps/",
+        os.getenv("HOME") .. "/.local/share/icons/hicolor/scalable/apps/",
+    }
+    local extensions = { ".png", ".svg", ".xpm", "" }
+
+    for _, dir in ipairs(icon_dirs) do
+        for _, ext in ipairs(extensions) do
+            local icon_path = dir .. icon_name .. ext
+            local f = io.open(icon_path)
+            if f then
+                f:close()
+                return icon_path
+            end
+        end
+    end
+
+    return nil
+end
+
+function app_menu:_update_filtered_list(search_term)
+    self._menu.filtered_list = {}
+    search_term = string.lower(search_term or "")
+
+    for _, app in ipairs(self._menu.desktop_entries) do
+        if string.find(string.lower(app.name), search_term, 1, true) then
+            table.insert(self._menu.filtered_list, app)
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Pinned Apps
+--------------------------------------------------------------------------------
+
+function app_menu:_load_pinned_apps()
+    local success, apps = pcall(dofile, config_dir .. "persistent/pinned_apps.lua")
+    if success and apps and type(apps) == "table" then
+        for _, app in ipairs(apps) do
+            if app.exec then
+                app.exec = self:_process_exec_command(app.exec, "")
+            end
+        end
+        self._menu.pinned_apps = apps
+    else
+        self._menu.pinned_apps = {}
+    end
+end
+
+function app_menu:_save_pinned_apps()
+    local file = io.open(config_dir .. "persistent/pinned_apps.lua", "w")
+    if file then
+        file:write("return {")
+        for _, app in ipairs(self._menu.pinned_apps) do
+            file:write(string.format(
+                '\n  {name = %s, exec = %s, icon = %s},',
+                escape_string(app.name),
+                escape_string(app.exec),
+                escape_string(app.icon or "")
+            ))
+        end
+        file:write("\n}")
+        file:close()
+    end
+end
+
+function app_menu:_is_app_pinned(app)
+    for _, pinned in ipairs(self._menu.pinned_apps) do
+        if pinned.name == app.name then
+            return true
+        end
+    end
+    return false
+end
+
+function app_menu:_toggle_pin(app)
+    if not app then return end
+
+    -- Check if already pinned
+    for i, pinned_app in ipairs(self._menu.pinned_apps) do
+        if pinned_app.name == app.name then
+            table.remove(self._menu.pinned_apps, i)
+            self:_save_pinned_apps()
+            self:refresh()
+            return
+        end
+    end
+
+    -- Add to pinned apps
+    if #self._menu.pinned_apps < CONFIG.max_pinned then
+        table.insert(self._menu.pinned_apps, {
+            name = app.name,
+            exec = app.exec,
+            icon = app.icon,
+        })
+        self:_save_pinned_apps()
+        self:refresh()
+    end
+end
+
+function app_menu:_remove_pinned(index)
+    table.remove(self._menu.pinned_apps, index)
+    self:_save_pinned_apps()
+    self:refresh()
+end
+
+function app_menu:_reorder_pinned(index, direction)
+    local new_index = index + direction
+    if new_index < 1 or new_index > #self._menu.pinned_apps then
+        return
+    end
+
+    self._menu.pinned_apps[index], self._menu.pinned_apps[new_index] =
+        self._menu.pinned_apps[new_index], self._menu.pinned_apps[index]
+
+    self._menu.focus.index = new_index
+    self:_save_pinned_apps()
+    self:refresh()
+end
+
+--------------------------------------------------------------------------------
+-- Utilities
+--------------------------------------------------------------------------------
+
+function app_menu:_run_with_sudo(command)
     awful.spawn.with_shell(string.format("zenity --password | sudo -S %s", command))
 end
 
-function show_desktop_info(desktop_path)
+function app_menu:_show_desktop_info(desktop_path)
     if not desktop_path then return end
-    -- Escape the path for shell
     local escaped_path = desktop_path:gsub('"', '\\"')
-    -- Use zenity to show the path with copy-able text
     awful.spawn.with_shell(string.format(
         'zenity --info --title="Desktop File Location" --text="<b>Desktop File Path:</b>\\n%s\\n\\nClick to select and Ctrl+C to copy" --width=500',
         escaped_path
     ))
 end
 
-function appmenu_create()
-    if #appmenu_data.desktop_entries == 0 then
-        scan_desktop_files()
-    end
+--------------------------------------------------------------------------------
+-- Module Interface (backwards compatible)
+--------------------------------------------------------------------------------
 
-    appmenu_data.search_input = create_text_input({
-        disable_arrows = true,
-        font = appmenu_data.font,
-        height = dpi(24),
-        on_text_change = function(new_text)
-            appmenu_data.current_start = 1
-            appmenu_data.current_focus = { type = "apps", index = 1, pin_focused = false, info_focused = false }
-            update_filtered_list(new_text)
-            ensure_focused_visible()
-            refresh_menu_widget()
-        end
-    })
+local appmenu_instance = nil
 
-    update_filtered_list("")
-    return create_search_box()
+local function appmenu_init()
+    appmenu_instance = app_menu.new()
+    appmenu_instance:init()
+    return appmenu_instance:get_popup()
 end
 
-function appmenu_init()
-    load_pinned_apps()
-
-    appmenu_data.wibox = awful.popup{
-        screen = mouse.screen,
-        widget = wibox.widget.base.make_widget(),
-        bg = theme.appmenu.bg,
-        border_color = theme.appmenu.border,
-        border_width = dpi(1),
-        visible = false,
-        ontop = true,
-        placement = awful.placement.centered,
-        shape = function(cr, w, h) gears.shape.rounded_rect(cr, w, h, dpi(16)) end,
-        maximum_width = dpi(500),
-        maximum_height = dpi(672),
-        minimum_width = dpi(500),
-        minimum_height = dpi(672)
-    }
-
-    appmenu_data.wibox.widget = wibox.container.constraint(
-        appmenu_create(), "exact", dpi(500), dpi(672)
-    )
-
-    appmenu_data.wibox:buttons(gears.table.join(
-        awful.button({}, 4, function() scroll_list(-1) end),
-        awful.button({}, 5, function() scroll_list(1) end)
-    ))
-
-    appmenu_data.keygrabber = awful.keygrabber {
-        autostart = false,
-        keypressed_callback = function(self, mod, key)
-            if key == "Control_L" or key == "Control_R" then
-                appmenu_data.control_pressed = true
-                appmenu_data.wibox:emit_signal("property::current_focus")
-                return
-            end
-
-            if not appmenu_data.search_input:handle_key(mod, key) then
-                if key == "Escape" then
-                    appmenu_hide()
-                    return
-                end
-                if key == "Up" or key == "Down" or key == "Left" or
-                   key == "Right" or key == "Return" or key == "Home" or
-                   key == "End" or key == "Tab" then
-                    handle_keyboard_navigation(mod, key)
-                end
-            end
-
-            execute_keybind(key, mod)
-        end,
-        keyreleased_callback = function(_, mod, key)
-            if key == "Control_L" or key == "Control_R" then
-                appmenu_data.control_pressed = false
-                appmenu_data.wibox:emit_signal("property::current_focus")
-            end
-        end,
-        stop_callback = function()
-            appmenu_data.wibox.visible = false
-        end
-    }
-
-    return appmenu_data.wibox
-end
-
-function appmenu_show()
-    if not appmenu_data.wibox then return end
-
-    scan_desktop_files()
-
-    appmenu_data.wibox.screen = mouse.screen
-    appmenu_data.control_pressed = false
-
-    if client.focus then
-        client.focus = nil
-    end
-
-    if appmenu_data.search_input then
-        appmenu_data.search_input:set_text("")
-    end
-
-    update_filtered_list("")
-    refresh_menu_widget()
-
-    appmenu_data.current_start = 1
-    appmenu_data.current_focus = { type = "pinned", index = 1, pin_focused = false, info_focused = false }
-    appmenu_data.wibox:emit_signal("property::current_focus")
-
-    awful.placement.centered(appmenu_data.wibox, {honor_workarea = true})
-
-    if appmenu_data.keygrabber then
-        appmenu_data.keygrabber:start()
-    end
-    awful.placement.centered(appmenu_data.wibox)
-    appmenu_data.wibox.visible = true
-end
-
-function appmenu_hide()
-    if not appmenu_data.wibox then return end
-
-    appmenu_data.wibox.visible = false
-    if appmenu_data.keygrabber then
-        appmenu_data.keygrabber:stop()
-    end
-    appmenu_data.wibox:emit_signal("property::current_focus")
-
-    local c = awful.mouse.client_under_pointer()
-    if c then
-        client.focus = c
-        c:raise()
+local function appmenu_show()
+    if appmenu_instance then
+        appmenu_instance:show()
     end
 end
 
-function appmenu_toggle()
-    if not appmenu_data.wibox then return end
-    if appmenu_data.wibox.visible then
-        appmenu_hide()
-    else
-        appmenu_show()
+local function appmenu_hide()
+    if appmenu_instance then
+        appmenu_instance:hide()
     end
 end
 
-return appmenu_data
+local function appmenu_toggle()
+    if appmenu_instance then
+        appmenu_instance:toggle()
+    end
+end
+
+-- Also expose scan function for compatibility
+local function scan_desktop_files()
+    if appmenu_instance then
+        appmenu_instance:_scan_desktop_files()
+    end
+end
+
+return {
+    init = appmenu_init,
+    show = appmenu_show,
+    hide = appmenu_hide,
+    toggle = appmenu_toggle,
+    scan_desktop_files = scan_desktop_files,
+
+    -- Export class for direct use
+    app_menu = app_menu,
+}
